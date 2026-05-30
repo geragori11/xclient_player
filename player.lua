@@ -1,72 +1,120 @@
 --[[
-    XClientMenuV2 - Player Module (Rayfield-based)
-    Вкладка функций локального игрока: WalkSpeed, JumpPower, SpinBot
+    XClientMenuV2 - Advanced Player Module
+    Разработчик: geragori11
+    Функции: WalkSpeed, JumpPower, SpinBot, Noclip, InfJump, FOV Changer
 --]]
 
 return function(Window)
     local Players = game:GetService("Players")
     local RunService = game:GetService("RunService")
+    local UserInputService = game:GetService("UserInputService")
     local LocalPlayer = Players.LocalPlayer
+    local Camera = workspace.CurrentCamera
 
-    -- Дефолтные значения
-    local NormalSpeed = 16
-    local NormalJump = 50
+    -- Глобальные переменные модуля
+    local NoclipEnabled = false
+    local InfJumpEnabled = false
     local SpinSpeed = 50
-
     local SpinRenderConnection = nil
 
     -- Создаем вкладку Player
     local PlayerTab = Window:CreateTab("Player", 4483362458)
 
+    -- ==========================================
+    -- СЕКЦИЯ: ХАРАКТЕРИСТИКИ
+    -- ==========================================
     PlayerTab:CreateSection("Характеристики персонажа")
 
-    -- Ползунок скорости (WalkSpeed)
     PlayerTab:CreateSlider({
-        Name = "Скорость бега (WalkSpeed)",
-        Range = {16, 500},
+        Name = "⚡ Скорость бега (WalkSpeed)",
+        Range = {16, 300},
         Increment = 1,
-        Suffix = " Характеристика",
+        Suffix = " Попугаев",
         CurrentValue = 16,
         Flag = "WalkSpeedSlider",
         Callback = function(Value)
             local Character = LocalPlayer.Character
             local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
-            if Humanoid then
-                Humanoid.WalkSpeed = Value
-            end
+            if Humanoid then Humanoid.WalkSpeed = Value end
         end
     })
 
-    -- Ползунок прыжка (JumpPower)
     PlayerTab:CreateSlider({
-        Name = "Высота прыжка (JumpPower)",
-        Range = {50, 500},
+        Name = "🦘 Высота прыжка (JumpPower)",
+        Range = {50, 300},
         Increment = 1,
-        Suffix = " Характеристика",
+        Suffix = " Сила",
         CurrentValue = 50,
         Flag = "JumpPowerSlider",
         Callback = function(Value)
             local Character = LocalPlayer.Character
             local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
-            if Humanoid then
-                Humanoid.UseJumpPower = true -- Гарантируем, что используется JumpPower вместо JumpHeight
-                Humanoid.JumpPower = Value
+            if Humanoid then 
+                Humanoid.UseJumpPower = true
+                Humanoid.JumpPower = Value 
             end
         end
     })
 
-    PlayerTab:CreateSection("Фан утилиты")
+    -- ==========================================
+    -- СЕКЦИЯ: ОБХОД СТЕН И ПЕРЕМЕЩЕНИЕ
+    -- ==========================================
+    PlayerTab:CreateSection("Перемещение и Обход стен")
 
-    -- Переключатель Спинбота
+    -- ТОТ САМЫЙ НОУКЛИП
     PlayerTab:CreateToggle({
-        Name = "Включить Спинбот (SpinBot)",
+        Name = "🧱 Прохождение сквозь стены (Noclip)",
+        CurrentValue = false,
+        Flag = "NoclipToggle",
+        Callback = function(Value)
+            NoclipEnabled = Value
+            -- Если отключили ноуклип, возвращаем коллизию обратно, чтобы не упасть в бездну
+            if not Value then
+                local Character = LocalPlayer.Character
+                if Character then
+                    for _, Part in ipairs(Character:GetDescendants()) do
+                        if Part:IsA("BasePart") then
+                            Part.CanCollide = true
+                        end
+                    end
+                end
+            end
+        end
+    })
+
+    PlayerTab:CreateToggle({
+        Name = "🌌 Бесконечный прыжок (Inf Jump)",
+        CurrentValue = false,
+        Flag = "InfJumpToggle",
+        Callback = function(Value)
+            InfJumpEnabled = Value
+        end
+    })
+
+    -- ==========================================
+    -- СЕКЦИЯ: ОКРУЖЕНИЕ И ФАН
+    -- ==========================================
+    PlayerTab:CreateSection("Визуал и Фан утилиты")
+
+    PlayerTab:CreateSlider({
+        Name = "👁️ Поле зрения (Camera FOV)",
+        Range = {70, 120},
+        Increment = 1,
+        Suffix = " Градусов",
+        CurrentValue = 70,
+        Flag = "FOVSlider",
+        Callback = function(Value)
+            Camera.FieldOfView = Value
+        end
+    })
+
+    PlayerTab:CreateToggle({
+        Name = "🌀 Включить Спинбот (SpinBot)",
         CurrentValue = false,
         Flag = "SpinBotToggle",
         Callback = function(Value)
             if Value then
-                -- Активация спинбота через Heartbeat (чтобы не лагало и работало плавно)
                 if SpinRenderConnection then SpinRenderConnection:Disconnect() end
-                
                 SpinRenderConnection = RunService.Heartbeat:Connect(function()
                     local Character = LocalPlayer.Character
                     local RootPart = Character and Character:FindFirstChild("HumanoidRootPart")
@@ -75,7 +123,6 @@ return function(Window)
                     end
                 end)
             else
-                -- Отключение спинбота
                 if SpinRenderConnection then
                     SpinRenderConnection:Disconnect()
                     SpinRenderConnection = nil
@@ -84,7 +131,6 @@ return function(Window)
         end
     })
 
-    -- Настройка скорости вращения спинбота
     PlayerTab:CreateSlider({
         Name = "Скорость вращения спинбота",
         Range = {10, 300},
@@ -92,17 +138,43 @@ return function(Window)
         Suffix = " Скорость",
         CurrentValue = 50,
         Flag = "SpinSpeedSlider",
-        Callback = function(Value)
-            SpinSpeed = Value
-        end
+        Callback = function(Value) SpinSpeed = Value end
     })
 
-    -- Авто-коррекция характеристик при возрождении персонажа
+    -- ==========================================
+    -- СЕРВИСНЫЕ ЦИКЛЫ (ОБРАБОТКА КАЖДЫЙ КАДР)
+    -- ==========================================
+    
+    -- Безопасный цикл для обработки Ноуклипа
+    RunService.Stepped:Connect(function()
+        if NoclipEnabled then
+            local Character = LocalPlayer.Character
+            if Character then
+                for _, Part in ipairs(Character:GetDescendants()) do
+                    if Part:IsA("BasePart") and Part.CanCollide == true then
+                        Part.CanCollide = false
+                    end
+                end
+            end
+        end
+    end)
+
+    -- Отслеживание зажатия пробела (вызов прыжка в воздухе)
+    UserInputService.JumpRequest:Connect(function()
+        if InfJumpEnabled then
+            local Character = LocalPlayer.Character
+            local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+            if Humanoid then
+                Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
+        end
+    end)
+
+    -- Фикс сброса настроек после перезагрузки персонажа (респавна)
     LocalPlayer.CharacterAdded:Connect(function(Character)
         local Humanoid = Character:WaitForChild("Humanoid")
-        task.wait(0.5) -- Небольшая задержка для загрузки флагов интерфейса
+        task.wait(0.6) -- Время на прогрузку персонажа игрой
         
-        -- Проверяем текущие значения в слайдерах интерфейса (если они сохранены в флагах)
         if Window.Flags and Window.Flags["WalkSpeedSlider"] then
             Humanoid.WalkSpeed = Window.Flags["WalkSpeedSlider"].CurrentValue
         end
