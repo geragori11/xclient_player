@@ -1,29 +1,35 @@
--- Скопируй этот код и обнови им свой файл player.lua на GitHub
+---[[
+    XClientMenuV2 - Advanced Player Module
+    Разработчик: geragori11
+    Функции: WalkSpeed, JumpPower, SpinBot, Noclip, InfJump, FOV Changer
+--]]
 
 return function(Window)
     local Players = game:GetService("Players")
     local RunService = game:GetService("RunService")
     local UserInputService = game:GetService("UserInputService")
     local LocalPlayer = Players.LocalPlayer
+    local Camera = workspace.CurrentCamera
 
-    -- Переменные для новых функций
+    -- Глобальные переменные модуля
     local NoclipEnabled = false
     local InfJumpEnabled = false
     local SpinSpeed = 50
     local SpinRenderConnection = nil
 
+    -- Создаем вкладку Player
     local PlayerTab = Window:CreateTab("Player", 4483362458)
 
     -- ==========================================
-    -- ХАРАКТЕРИСТИКИ
+    -- СЕКЦИЯ: ХАРАКТЕРИСТИКИ
     -- ==========================================
     PlayerTab:CreateSection("Характеристики персонажа")
 
     PlayerTab:CreateSlider({
-        Name = "Скорость бега (WalkSpeed)",
-        Range = {16, 500},
+        Name = "⚡ Скорость бега (WalkSpeed)",
+        Range = {16, 300},
         Increment = 1,
-        Suffix = " Скорость",
+        Suffix = " Попугаев",
         CurrentValue = 16,
         Flag = "WalkSpeedSlider",
         Callback = function(Value)
@@ -34,8 +40,8 @@ return function(Window)
     })
 
     PlayerTab:CreateSlider({
-        Name = "Высота прыжка (JumpPower)",
-        Range = {50, 500},
+        Name = "🦘 Высота прыжка (JumpPower)",
+        Range = {50, 300},
         Increment = 1,
         Suffix = " Сила",
         CurrentValue = 50,
@@ -51,23 +57,33 @@ return function(Window)
     })
 
     -- ==========================================
-    -- ПЕРЕМЕЩЕНИЕ И ОБХОД СТЕН
+    -- СЕКЦИЯ: ОБХОД СТЕН И ПЕРЕМЕЩЕНИЕ
     -- ==========================================
-    PlayerTab:CreateSection("Перемещение и Стены")
+    PlayerTab:CreateSection("Перемещение и Обход стен")
 
-    -- Новая функция: Ноклип
+    -- ТОТ САМЫЙ НОУКЛИП
     PlayerTab:CreateToggle({
-        Name = "Прохождение сквозь стены (Noclip)",
+        Name = "🧱 Прохождение сквозь стены (Noclip)",
         CurrentValue = false,
         Flag = "NoclipToggle",
         Callback = function(Value)
             NoclipEnabled = Value
+            -- Если отключили ноуклип, возвращаем коллизию обратно, чтобы не упасть в бездну
+            if not Value then
+                local Character = LocalPlayer.Character
+                if Character then
+                    for _, Part in ipairs(Character:GetDescendants()) do
+                        if Part:IsA("BasePart") then
+                            Part.CanCollide = true
+                        end
+                    end
+                end
+            end
         end
     })
 
-    -- Новая функция: Бесконечный прыжок
     PlayerTab:CreateToggle({
-        Name = "Бесконечный прыжок (Inf Jump)",
+        Name = "🌌 Бесконечный прыжок (Inf Jump)",
         CurrentValue = false,
         Flag = "InfJumpToggle",
         Callback = function(Value)
@@ -76,12 +92,24 @@ return function(Window)
     })
 
     -- ==========================================
-    -- ФАН УТИЛИТЫ
+    -- СЕКЦИЯ: ОКРУЖЕНИЕ И ФАН
     -- ==========================================
-    PlayerTab:CreateSection("Фан утилиты")
+    PlayerTab:CreateSection("Визуал и Фан утилиты")
+
+    PlayerTab:CreateSlider({
+        Name = "👁️ Поле зрения (Camera FOV)",
+        Range = {70, 120},
+        Increment = 1,
+        Suffix = " Градусов",
+        CurrentValue = 70,
+        Flag = "FOVSlider",
+        Callback = function(Value)
+            Camera.FieldOfView = Value
+        end
+    })
 
     PlayerTab:CreateToggle({
-        Name = "Включить Спинбот (SpinBot)",
+        Name = "🌀 Включить Спинбот (SpinBot)",
         CurrentValue = false,
         Flag = "SpinBotToggle",
         Callback = function(Value)
@@ -114,16 +142,16 @@ return function(Window)
     })
 
     -- ==========================================
-    -- ЦИКЛЫ ОБРАБОТКИ (ГЛОБАЛЬНЫЕ СЕРВИСЫ)
+    -- СЕРВИСНЫЕ ЦИКЛЫ (ОБРАБОТКА КАЖДЫЙ КАДР)
     -- ==========================================
     
-    -- Цикл для Noclip (работает каждый кадр перед рендером физики)
+    -- Безопасный цикл для обработки Ноуклипа
     RunService.Stepped:Connect(function()
         if NoclipEnabled then
             local Character = LocalPlayer.Character
             if Character then
                 for _, Part in ipairs(Character:GetDescendants()) do
-                    if Part:IsA("BasePart") then
+                    if Part:IsA("BasePart") and Part.CanCollide == true then
                         Part.CanCollide = false
                     end
                 end
@@ -131,7 +159,7 @@ return function(Window)
         end
     end)
 
-    -- Отслеживание нажатия пробела для Inf Jump
+    -- Отслеживание зажатия пробела (вызов прыжка в воздухе)
     UserInputService.JumpRequest:Connect(function()
         if InfJumpEnabled then
             local Character = LocalPlayer.Character
@@ -142,10 +170,11 @@ return function(Window)
         end
     end)
 
-    -- Авто-коррекция при возрождении
+    -- Фикс сброса настроек после перезагрузки персонажа (респавна)
     LocalPlayer.CharacterAdded:Connect(function(Character)
         local Humanoid = Character:WaitForChild("Humanoid")
-        task.wait(0.5)
+        task.wait(0.6) -- Время на прогрузку персонажа игрой
+        
         if Window.Flags and Window.Flags["WalkSpeedSlider"] then
             Humanoid.WalkSpeed = Window.Flags["WalkSpeedSlider"].CurrentValue
         end
