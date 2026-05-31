@@ -1,5 +1,3 @@
--- Скопируй этот код и обнови им свой файл player.lua на GitHub
-
 return function(Window)
     local Players = game:GetService("Players")
     local RunService = game:GetService("RunService")
@@ -11,6 +9,13 @@ return function(Window)
     local InfJumpEnabled = false
     local SpinSpeed = 50
     local SpinRenderConnection = nil
+
+    -- Переменные для сохранения характеристик после смерти
+    local SavedWalkSpeed = 16
+    local SavedJumpPower = 50
+
+    -- Переменная для Anti-Fling
+    local AntiFlingEnabled = false
 
     local PlayerTab = Window:CreateTab("Player", 4483362458)
 
@@ -27,6 +32,7 @@ return function(Window)
         CurrentValue = 16,
         Flag = "WalkSpeedSlider",
         Callback = function(Value)
+            SavedWalkSpeed = Value -- Сохраняем значение
             local Character = LocalPlayer.Character
             local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
             if Humanoid then Humanoid.WalkSpeed = Value end
@@ -41,6 +47,7 @@ return function(Window)
         CurrentValue = 50,
         Flag = "JumpPowerSlider",
         Callback = function(Value)
+            SavedJumpPower = Value -- Сохраняем значение
             local Character = LocalPlayer.Character
             local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
             if Humanoid then 
@@ -55,7 +62,6 @@ return function(Window)
     -- ==========================================
     PlayerTab:CreateSection("Перемещение и Стены")
 
-    -- Новая функция: Ноклип
     PlayerTab:CreateToggle({
         Name = "Прохождение сквозь стены (Noclip)",
         CurrentValue = false,
@@ -65,13 +71,26 @@ return function(Window)
         end
     })
 
-    -- Новая функция: Бесконечный прыжок
     PlayerTab:CreateToggle({
         Name = "Бесконечный прыжок (Inf Jump)",
         CurrentValue = false,
         Flag = "InfJumpToggle",
         Callback = function(Value)
             InfJumpEnabled = Value
+        end
+    })
+
+    -- ==========================================
+    -- ЗАЩИТА (Anti-Fling)
+    -- ==========================================
+    PlayerTab:CreateSection("Защита")
+
+    PlayerTab:CreateToggle({
+        Name = "Anti-Fling (Без коллизии с игроками <30 ст)",
+        CurrentValue = false,
+        Flag = "AntiFlingToggle",
+        Callback = function(Value)
+            AntiFlingEnabled = Value
         end
     })
 
@@ -117,14 +136,34 @@ return function(Window)
     -- ЦИКЛЫ ОБРАБОТКИ (ГЛОБАЛЬНЫЕ СЕРВИСЫ)
     -- ==========================================
     
-    -- Цикл для Noclip (работает каждый кадр перед рендером физики)
+    -- Цикл для Noclip и Anti-Fling (работает каждый кадр перед рендером физики)
     RunService.Stepped:Connect(function()
+        local MyCharacter = LocalPlayer.Character
+        if not MyCharacter then return end
+
+        local MyHRP = MyCharacter:FindFirstChild("HumanoidRootPart")
+
+        -- Обработка Noclip
         if NoclipEnabled then
-            local Character = LocalPlayer.Character
-            if Character then
-                for _, Part in ipairs(Character:GetDescendants()) do
-                    if Part:IsA("BasePart") then
-                        Part.CanCollide = false
+            for _, Part in ipairs(MyCharacter:GetDescendants()) do
+                if Part:IsA("BasePart") then
+                    Part.CanCollide = false
+                end
+            end
+        end
+
+        -- Обработка Anti-Fling
+        if AntiFlingEnabled and MyHRP then
+            for _, Player in ipairs(Players:GetPlayers()) do
+                if Player ~= LocalPlayer and Player.Character then
+                    local TargetHRP = Player.Character:FindFirstChild("HumanoidRootPart")
+                    -- Если игрок ближе чем на 30 студов
+                    if TargetHRP and (MyHRP.Position - TargetHRP.Position).Magnitude <= 30 then
+                        for _, Part in ipairs(Player.Character:GetDescendants()) do
+                            if Part:IsA("BasePart") then
+                                Part.CanCollide = false
+                            end
+                        end
                     end
                 end
             end
@@ -144,14 +183,13 @@ return function(Window)
 
     -- Авто-коррекция при возрождении
     LocalPlayer.CharacterAdded:Connect(function(Character)
-        local Humanoid = Character:WaitForChild("Humanoid")
-        task.wait(0.5)
-        if Window.Flags and Window.Flags["WalkSpeedSlider"] then
-            Humanoid.WalkSpeed = Window.Flags["WalkSpeedSlider"].CurrentValue
-        end
-        if Window.Flags and Window.Flags["JumpPowerSlider"] then
+        -- Ждем прогрузки Humanoid
+        local Humanoid = Character:WaitForChild("Humanoid", 3)
+        if Humanoid then
+            task.wait(0.2) -- Легкая задержка, чтобы игра не успела сбросить наши настройки
+            Humanoid.WalkSpeed = SavedWalkSpeed
             Humanoid.UseJumpPower = true
-            Humanoid.JumpPower = Window.Flags["JumpPowerSlider"].CurrentValue
+            Humanoid.JumpPower = SavedJumpPower
         end
     end)
 end
