@@ -25,6 +25,7 @@ return function(Window)
     local SpeedMultiplier = 43
     local VerticalPower = 9671405556917033397649407   -- максимальная глубина
     local ShotWindow = 0.2
+    local IgnoreToggleCallback = false   -- защита от рекурсии
 
     -- Объекты для физики
     local CameraAnchor = Instance.new("Part")
@@ -54,10 +55,8 @@ return function(Window)
         end
     end
 
-    -- Физическое включение/выключение режима
+    -- Физическое включение/выключение режима (без проверок, вызывается всегда)
     local function toggleGodMode(enable)
-        if GodModeEnabled == enable then return end
-        GodModeEnabled = enable
         local char = LocalPlayer.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
         local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -79,18 +78,29 @@ return function(Window)
             end
             if hum then
                 workspace.CurrentCamera.CameraSubject = hum
+                hum.PlatformStand = false   -- на всякий случай снимаем, если был
+                hum.WalkSpeed = SavedWalkSpeed   -- восстанавливаем скорость ходьбы
+            end
+            -- Полностью убираем возможность залипания
+            if root then
+                root.Velocity = Vector3.zero
+                root.RotVelocity = Vector3.zero
             end
         end
+        GodModeEnabled = enable
     end
 
-    -- Единая точка входа для переключения (обновляет и состояние, и UI)
+    -- Единая точка переключения (синхронизация с UI)
     local GodToggleObject = nil
     local function SetGodMode(enable)
-        if GodModeEnabled == enable then return end
+        if GodModeEnabled == enable then return end  -- ничего не делаем, если уже в нужном состоянии
         toggleGodMode(enable)
-        -- Синхронизируем тоггл в меню
-        if GodToggleObject and GodToggleObject.Set then
+
+        -- Программно обновляем тоггл в меню, если есть такая возможность
+        if GodToggleObject and GodToggleObject.Set and not IgnoreToggleCallback then
+            IgnoreToggleCallback = true
             GodToggleObject:Set(enable)
+            IgnoreToggleCallback = false
         end
     end
 
@@ -272,6 +282,7 @@ return function(Window)
         CurrentValue = false,
         Flag = "GodToggle",
         Callback = function(Value)
+            if IgnoreToggleCallback then return end  -- если обновление инициировано нами, пропускаем
             SetGodMode(Value)
         end
     })
@@ -394,9 +405,16 @@ return function(Window)
         end
         -- Если бессмертие было активно, перезапускаем его для нового персонажа
         if GodModeEnabled then
-            toggleGodMode(false)
+            -- сначала выключаем для старого (которого уже нет), потом включаем для нового
+            toggleGodMode(false)  -- это безопасно, т.к. char уже новый, но флаг сбросится
             task.wait(0.1)
             toggleGodMode(true)
+            -- синхронизируем тоггл, если нужно
+            if GodToggleObject and GodToggleObject.Set and not IgnoreToggleCallback then
+                IgnoreToggleCallback = true
+                GodToggleObject:Set(true)
+                IgnoreToggleCallback = false
+            end
         end
     end)
 
