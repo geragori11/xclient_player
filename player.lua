@@ -4,32 +4,29 @@ return function(Window)
     local UserInputService = game:GetService("UserInputService")
     local LocalPlayer = Players.LocalPlayer
 
-    -- Переменные для новых функций
+    -- Основные переменные
     local NoclipEnabled = false
     local InfJumpEnabled = false
     local SpinSpeed = 50
     local SpinRenderConnection = nil
 
-    -- Переменные для сохранения характеристик после смерти
     local SavedWalkSpeed = 16
     local SavedJumpPower = 50
 
-    -- Переменная для Anti-Fling
     local AntiFlingEnabled = false
-
-    -- Переменная для Strafe (управление в воздухе без инерции)
     local StrafeEnabled = false
 
     -- ==========================================
-    -- ПЕРЕМЕННЫЕ ДЛЯ БЕССМЕРТИЯ / TP-DODGE (КАК TRINITY-ULTRA V52.3)
+    -- БЕССМЕРТИЕ (TRINITY TP-DODGE)
     -- ==========================================
     local GodModeEnabled = false
     local GodKey = Enum.KeyCode.X
     local GhostTransparency = 0.05
     local SpeedMultiplier = 43
-    local VerticalPower = 9671405556917033397649407     -- максимальная глубина
+    local VerticalPower = 9671405556917033397649407   -- максимальная глубина
     local ShotWindow = 0.2
 
+    -- Объекты для физики
     local CameraAnchor = Instance.new("Part")
     CameraAnchor.Name = "GodModeAnchor"
     CameraAnchor.Transparency = 1
@@ -57,8 +54,9 @@ return function(Window)
         end
     end
 
+    -- Физическое включение/выключение режима
     local function toggleGodMode(enable)
-        if enable == GodModeEnabled then return end
+        if GodModeEnabled == enable then return end
         GodModeEnabled = enable
         local char = LocalPlayer.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -85,25 +83,18 @@ return function(Window)
         end
     end
 
-    -- Синхронизация клавиши и тогла
-    local function onGodKeyPress()
-        local newState = not GodModeEnabled
-        toggleGodMode(newState)
-        pcall(function()
-            if Window and Window.Flags and Window.Flags.InvisibilityToggle then
-                Window.Flags.InvisibilityToggle:Set(newState)
-            end
-        end)
+    -- Единая точка входа для переключения (обновляет и состояние, и UI)
+    local GodToggleObject = nil
+    local function SetGodMode(enable)
+        if GodModeEnabled == enable then return end
+        toggleGodMode(enable)
+        -- Синхронизируем тоггл в меню
+        if GodToggleObject and GodToggleObject.Set then
+            GodToggleObject:Set(enable)
+        end
     end
 
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-        if input.KeyCode == GodKey then
-            onGodKeyPress()
-        end
-    end)
-
-    -- Основной цикл TP-Dodge (Heartbeat)
+    -- Цикл Heartbeat для режима
     RunService.Heartbeat:Connect(function()
         if not GodModeEnabled then return end
         local char = LocalPlayer.Character
@@ -118,7 +109,6 @@ return function(Window)
                            UserInputService:IsMouseButtonPressed(Enum.UserInputType.Touch)
         local startCF = root.CFrame
 
-        -- Горизонтальное движение с умножением скорости
         if hum.MoveDirection.Magnitude > 0 then
             root.Velocity = Vector3.new(
                 hum.MoveDirection.X * SpeedMultiplier,
@@ -145,6 +135,9 @@ return function(Window)
         end
     end)
 
+    -- ==========================================
+    -- СОЗДАНИЕ ВКЛАДКИ PLAYER
+    -- ==========================================
     local PlayerTab = Window:CreateTab("Player", 4483362458)
 
     -- ==========================================
@@ -270,16 +263,16 @@ return function(Window)
     })
 
     -- ==========================================
-    -- БЕССМЕРТИЕ / TP-DODGE (TRINITY STYLE)
+    -- БЕССМЕРТИЕ (ИНТЕРФЕЙС)
     -- ==========================================
     PlayerTab:CreateSection("Бессмертие (Trinity TP-Dodge)")
 
-    PlayerTab:CreateToggle({
+    GodToggleObject = PlayerTab:CreateToggle({
         Name = "Включить бессмертие",
         CurrentValue = false,
-        Flag = "InvisibilityToggle",
+        Flag = "GodToggle",
         Callback = function(Value)
-            toggleGodMode(Value)
+            SetGodMode(Value)
         end
     })
 
@@ -288,7 +281,7 @@ return function(Window)
         Range = {0, 100},
         Increment = 1,
         Suffix = "%",
-        CurrentValue = 5,   -- 0.05
+        CurrentValue = 5,
         Flag = "TransparencySlider",
         Callback = function(Value)
             GhostTransparency = Value / 100
@@ -319,15 +312,23 @@ return function(Window)
         end
     })
 
+    -- Клавиша переключения (обработчик)
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if input.KeyCode == GodKey then
+            SetGodMode(not GodModeEnabled)
+        end
+    end)
+
     -- ==========================================
-    -- ЦИКЛЫ ОБРАБОТКИ (NOCLIP, ANTI-FLING, STRAFE)
+    -- ОБРАБОТКА ПРОЧИХ ФУНКЦИЙ (STEHPED, JUMP и т.д.)
     -- ==========================================
     RunService.Stepped:Connect(function()
         local MyCharacter = LocalPlayer.Character
         if not MyCharacter then return end
-
         local MyHRP = MyCharacter:FindFirstChild("HumanoidRootPart")
 
+        -- Noclip
         if NoclipEnabled then
             for _, Part in ipairs(MyCharacter:GetDescendants()) do
                 if Part:IsA("BasePart") then
@@ -336,6 +337,7 @@ return function(Window)
             end
         end
 
+        -- Anti-Fling
         if AntiFlingEnabled and MyHRP then
             for _, Player in ipairs(Players:GetPlayers()) do
                 if Player ~= LocalPlayer and Player.Character then
@@ -351,6 +353,7 @@ return function(Window)
             end
         end
 
+        -- Strafe
         if StrafeEnabled and MyHRP then
             local Humanoid = MyCharacter:FindFirstChildOfClass("Humanoid")
             if Humanoid then
@@ -367,6 +370,7 @@ return function(Window)
         end
     end)
 
+    -- Бесконечный прыжок
     UserInputService.JumpRequest:Connect(function()
         if InfJumpEnabled then
             local Character = LocalPlayer.Character
@@ -377,6 +381,9 @@ return function(Window)
         end
     end)
 
+    -- ==========================================
+    -- ВОССТАНОВЛЕНИЕ ПРИ ВОЗРОЖДЕНИИ
+    -- ==========================================
     LocalPlayer.CharacterAdded:Connect(function(Character)
         local Humanoid = Character:WaitForChild("Humanoid", 3)
         if Humanoid then
@@ -385,7 +392,7 @@ return function(Window)
             Humanoid.UseJumpPower = true
             Humanoid.JumpPower = SavedJumpPower
         end
-        -- При возрождении, если бессмертие было включено, перезапускаем его для нового тела
+        -- Если бессмертие было активно, перезапускаем его для нового персонажа
         if GodModeEnabled then
             toggleGodMode(false)
             task.wait(0.1)
@@ -394,7 +401,7 @@ return function(Window)
     end)
 
     -- ==========================================
-    -- АВТО-ОБНОВЛЕНИЕ КАЖДЫЕ 2 СЕКУНДЫ
+    -- ПЕРИОДИЧЕСКОЕ ОБНОВЛЕНИЕ (каждые 2 сек)
     -- ==========================================
     local function fullRefresh()
         local char = LocalPlayer.Character
