@@ -224,4 +224,65 @@ return function(Window)
             Humanoid.JumpPower = SavedJumpPower
         end
     end)
+
+    -- ==========================================
+    -- АВТО-ОБНОВЛЕНИЕ ВСЕХ НАСТРОЕК КАЖДЫЕ 2 СЕКУНДЫ И ПОСЛЕ СМЕРТИ
+    -- ==========================================
+    local function fullRefresh()
+        local char = LocalPlayer.Character
+        if not char then return end
+
+        -- Характеристики
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.WalkSpeed = SavedWalkSpeed
+            hum.UseJumpPower = true
+            hum.JumpPower = SavedJumpPower
+        end
+
+        -- Noclip
+        if NoclipEnabled then
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                end
+            end
+        end
+
+        -- Anti-Fling (повторно отключаем коллизию ближайших врагов)
+        if AntiFlingEnabled then
+            local myHRP = char:FindFirstChild("HumanoidRootPart")
+            if myHRP then
+                for _, player in ipairs(Players:GetPlayers()) do
+                    if player ~= LocalPlayer and player.Character then
+                        local targetHRP = player.Character:FindFirstChild("HumanoidRootPart")
+                        if targetHRP and (myHRP.Position - targetHRP.Position).Magnitude <= 30 then
+                            for _, part in ipairs(player.Character:GetDescendants()) do
+                                if part:IsA("BasePart") then
+                                    part.CanCollide = false
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        -- Остальные функции (InfJump, Strafe, SpinBot) обновляются в реальном времени через свои циклы,
+        -- но здесь можно добавить принудительную активацию при необходимости.
+    end
+
+    -- Периодический вызов каждые 2 секунды
+    task.spawn(function()
+        while true do
+            task.wait(2)
+            fullRefresh()
+        end
+    end)
+
+    -- Дополнительное полное обновление при возрождении персонажа
+    LocalPlayer.CharacterAdded:Connect(function()
+        task.wait(0.1)
+        fullRefresh()
+    end)
 end
