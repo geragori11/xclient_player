@@ -4,141 +4,27 @@ return function(Window)
     local UserInputService = game:GetService("UserInputService")
     local LocalPlayer = Players.LocalPlayer
 
-    -- Основные переменные
+    -- Переменные для новых функций
     local NoclipEnabled = false
     local InfJumpEnabled = false
     local SpinSpeed = 50
     local SpinRenderConnection = nil
 
+    -- Переменные для сохранения характеристик после смерти
     local SavedWalkSpeed = 16
     local SavedJumpPower = 50
 
+    -- Переменная для Anti-Fling
     local AntiFlingEnabled = false
+
+    -- Переменная для Strafe (управление в воздухе без инерции)
     local StrafeEnabled = false
 
-    -- ==========================================
-    -- БЕССМЕРТИЕ (TRINITY TP-DODGE) – Rayfield‑версия
-    -- ==========================================
-    local GodModeEnabled = false
-    local GodKey = Enum.KeyCode.X
-    local GhostTransparency = 0.05
-    local SpeedMultiplier = 43
-    local VerticalPower = 9671405556917033397649407
-    local ShotWindow = 0.2
-
-    local CameraAnchor = Instance.new("Part")
-    CameraAnchor.Name = "GodModeAnchor"
-    CameraAnchor.Transparency = 1
-    CameraAnchor.CanCollide = false
-    CameraAnchor.Anchored = true
-    CameraAnchor.Size = Vector3.new(1, 1, 1)
-    CameraAnchor.Parent = workspace
-
-    local Gyro = Instance.new("BodyGyro")
-    Gyro.Name = "GodModeGyro"
-    Gyro.MaxTorque = Vector3.new(0, 0, 0)
-    Gyro.P = 3000
-    Gyro.D = 50
-
-    local function setCharTransparency(trans)
-        local char = LocalPlayer.Character
-        if char then
-            for _, v in ipairs(char:GetDescendants()) do
-                if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then
-                    v.Transparency = trans
-                elseif v:IsA("Decal") then
-                    v.Transparency = trans
-                end
-            end
-        end
-    end
-
-    local function toggleGodModePhysics(enable)
-        local char = LocalPlayer.Character
-        local root = char and char:FindFirstChild("HumanoidRootPart")
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-
-        if enable then
-            setCharTransparency(GhostTransparency)
-            if root then
-                Gyro.Parent = root
-                Gyro.MaxTorque = Vector3.new(4e5, 4e5, 4e5)
-                CameraAnchor.CFrame = root.CFrame * CFrame.new(0, 2, 0)
-                workspace.CurrentCamera.CameraSubject = CameraAnchor
-            end
-        else
-            setCharTransparency(0)
-            Gyro.Parent = nil
-            if root then
-                root.CanCollide = true
-                root.CFrame = CameraAnchor.CFrame * CFrame.new(0, -2, 0)
-                root.Velocity = Vector3.zero
-                root.RotVelocity = Vector3.zero
-            end
-            if hum then
-                workspace.CurrentCamera.CameraSubject = hum
-                hum.PlatformStand = false
-            end
-        end
-        GodModeEnabled = enable
-    end
-
-    local function SetGodMode(enable)
-        if GodModeEnabled == enable then return end
-        toggleGodModePhysics(enable)
-
-        -- Синхронизируем флаг Rayfield
-        if Window and Window.Flags and Window.Flags["GodToggle"] then
-            Window.Flags["GodToggle"]:Set(enable)
-        end
-    end
-
-    RunService.Heartbeat:Connect(function()
-        if not GodModeEnabled then return end
-        local char = LocalPlayer.Character
-        local root = char and char:FindFirstChild("HumanoidRootPart")
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        if not (char and root and hum) then return end
-
-        CameraAnchor.CFrame = root.CFrame * CFrame.new(0, 2, 0)
-        workspace.CurrentCamera.CameraSubject = CameraAnchor
-
-        local isShooting = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) or
-                           UserInputService:IsMouseButtonPressed(Enum.UserInputType.Touch)
-        local startCF = root.CFrame
-
-        if hum.MoveDirection.Magnitude > 0 then
-            root.Velocity = Vector3.new(
-                hum.MoveDirection.X * SpeedMultiplier,
-                root.Velocity.Y,
-                hum.MoveDirection.Z * SpeedMultiplier
-            )
-        end
-
-        if isShooting then
-            root.CanCollide = true
-            root.CFrame = startCF
-            task.wait(ShotWindow)
-        else
-            root.CanCollide = false
-            Gyro.CFrame = startCF
-            local rx = math.random(-1.7976931348623157e308, 1.7976931348623157e308)
-            local rz = math.random(-1.7976931348623157e308, 1.7976931348623157e308)
-            root.CFrame = startCF * CFrame.new(rx, -VerticalPower, rz)
-            RunService.RenderStepped:Wait()
-            if GodModeEnabled and root then
-                root.CFrame = startCF
-                root.CanCollide = true
-            end
-        end
-    end)
-
-    -- ==========================================
-    -- ПОСТРОЕНИЕ ИНТЕРФЕЙСА
-    -- ==========================================
     local PlayerTab = Window:CreateTab("Player", 4483362458)
 
-    -- Характеристики
+    -- ==========================================
+    -- ХАРАКТЕРИСТИКИ
+    -- ==========================================
     PlayerTab:CreateSection("Характеристики персонажа")
 
     PlayerTab:CreateSlider({
@@ -149,7 +35,10 @@ return function(Window)
         CurrentValue = 16,
         Flag = "WalkSpeedSlider",
         Callback = function(Value)
-            SavedWalkSpeed = Value
+            SavedWalkSpeed = Value -- Сохраняем значение
+            local Character = LocalPlayer.Character
+            local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+            if Humanoid then Humanoid.WalkSpeed = Value end
         end
     })
 
@@ -161,11 +50,19 @@ return function(Window)
         CurrentValue = 50,
         Flag = "JumpPowerSlider",
         Callback = function(Value)
-            SavedJumpPower = Value
+            SavedJumpPower = Value -- Сохраняем значение
+            local Character = LocalPlayer.Character
+            local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+            if Humanoid then 
+                Humanoid.UseJumpPower = true
+                Humanoid.JumpPower = Value 
+            end
         end
     })
 
-    -- Перемещение и стены
+    -- ==========================================
+    -- ПЕРЕМЕЩЕНИЕ И ОБХОД СТЕН
+    -- ==========================================
     PlayerTab:CreateSection("Перемещение и Стены")
 
     PlayerTab:CreateToggle({
@@ -186,6 +83,7 @@ return function(Window)
         end
     })
 
+    -- Strafe (воздушное управление без инерции)
     PlayerTab:CreateToggle({
         Name = "Strafe (Убирает инерцию в воздухе)",
         CurrentValue = false,
@@ -195,7 +93,9 @@ return function(Window)
         end
     })
 
-    -- Защита
+    -- ==========================================
+    -- ЗАЩИТА (Anti-Fling)
+    -- ==========================================
     PlayerTab:CreateSection("Защита")
 
     PlayerTab:CreateToggle({
@@ -207,7 +107,9 @@ return function(Window)
         end
     })
 
-    -- Фан утилиты
+    -- ==========================================
+    -- ФАН УТИЛИТЫ
+    -- ==========================================
     PlayerTab:CreateSection("Фан утилиты")
 
     PlayerTab:CreateToggle({
@@ -243,75 +145,95 @@ return function(Window)
         Callback = function(Value) SpinSpeed = Value end
     })
 
-    -- БЕССМЕРТИЕ (интерфейс)
-    PlayerTab:CreateSection("Бессмертие (Trinity TP-Dodge)")
+    -- ==========================================
+    -- ЦИКЛЫ ОБРАБОТКИ (ГЛОБАЛЬНЫЕ СЕРВИСЫ)
+    -- ==========================================
+    
+    -- Цикл для Noclip, Anti-Fling и Strafe (работает каждый кадр перед рендером физики)
+    RunService.Stepped:Connect(function()
+        local MyCharacter = LocalPlayer.Character
+        if not MyCharacter then return end
 
-    PlayerTab:CreateToggle({
-        Name = "Включить бессмертие",
-        CurrentValue = false,
-        Flag = "GodToggle",
-        Callback = function(Value)
-            -- Защита от рекурсивного вызова: если состояние уже совпадает, ничего не делаем
-            if GodModeEnabled ~= Value then
-                SetGodMode(Value)
+        local MyHRP = MyCharacter:FindFirstChild("HumanoidRootPart")
+
+        -- Обработка Noclip
+        if NoclipEnabled then
+            for _, Part in ipairs(MyCharacter:GetDescendants()) do
+                if Part:IsA("BasePart") then
+                    Part.CanCollide = false
+                end
             end
         end
-    })
 
-    PlayerTab:CreateSlider({
-        Name = "Прозрачность",
-        Range = {0, 100},
-        Increment = 1,
-        Suffix = "%",
-        CurrentValue = 5,
-        Flag = "TransparencySlider",
-        Callback = function(Value)
-            GhostTransparency = Value / 100
-            if GodModeEnabled then
-                setCharTransparency(GhostTransparency)
+        -- Обработка Anti-Fling
+        if AntiFlingEnabled and MyHRP then
+            for _, Player in ipairs(Players:GetPlayers()) do
+                if Player ~= LocalPlayer and Player.Character then
+                    local TargetHRP = Player.Character:FindFirstChild("HumanoidRootPart")
+                    -- Если игрок ближе чем на 30 студов
+                    if TargetHRP and (MyHRP.Position - TargetHRP.Position).Magnitude <= 30 then
+                        for _, Part in ipairs(Player.Character:GetDescendants()) do
+                            if Part:IsA("BasePart") then
+                                Part.CanCollide = false
+                            end
+                        end
+                    end
+                end
             end
         end
-    })
 
-    PlayerTab:CreateSlider({
-        Name = "Скорость перемещения",
-        Range = {10, 200},
-        Increment = 1,
-        Suffix = " studs/s",
-        CurrentValue = 43,
-        Flag = "SpeedSlider",
-        Callback = function(Value)
-            SpeedMultiplier = Value
+        -- Обработка Strafe (управление в воздухе без инерции)
+        if StrafeEnabled and MyHRP then
+            local Humanoid = MyCharacter:FindFirstChildOfClass("Humanoid")
+            if Humanoid then
+                local state = Humanoid:GetState()
+                -- Применяем только в воздухе (свободное падение или прыжок)
+                if state == Enum.HumanoidStateType.Freefall or state == Enum.HumanoidStateType.Jumping then
+                    local moveDirection = Humanoid.MoveDirection
+                    if moveDirection.Magnitude > 0 then
+                        -- Движемся в указанном направлении с текущей скоростью бега, сохраняя вертикальную скорость
+                        MyHRP.Velocity = moveDirection * Humanoid.WalkSpeed + Vector3.new(0, MyHRP.Velocity.Y, 0)
+                    else
+                        -- Клавиши не нажаты – гасим горизонтальную скорость, персонаж зависает в воздухе
+                        MyHRP.Velocity = Vector3.new(0, MyHRP.Velocity.Y, 0)
+                    end
+                end
+            end
         end
-    })
+    end)
 
-    PlayerTab:CreateKeybind({
-        Name = "Клавиша переключения",
-        CurrentKeybind = "X",
-        Flag = "GodKeybind",
-        Callback = function(Key)
-            GodKey = Key
+    -- Отслеживание нажатия пробела для Inf Jump
+    UserInputService.JumpRequest:Connect(function()
+        if InfJumpEnabled then
+            local Character = LocalPlayer.Character
+            local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+            if Humanoid then
+                Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
         end
-    })
+    end)
 
-    -- Обработчик клавиши
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-        if input.KeyCode == GodKey then
-            SetGodMode(not GodModeEnabled)
+    -- Авто-коррекция при возрождении
+    LocalPlayer.CharacterAdded:Connect(function(Character)
+        -- Ждем прогрузки Humanoid
+        local Humanoid = Character:WaitForChild("Humanoid", 3)
+        if Humanoid then
+            task.wait(0.2) -- Легкая задержка, чтобы игра не успела сбросить наши настройки
+            Humanoid.WalkSpeed = SavedWalkSpeed
+            Humanoid.UseJumpPower = true
+            Humanoid.JumpPower = SavedJumpPower
         end
     end)
 
     -- ==========================================
-    -- ОСНОВНОЙ ЦИКЛ (Stepped)
+    -- АВТО-ОБНОВЛЕНИЕ ВСЕХ НАСТРОЕК КАЖДЫЕ 2 СЕКУНДЫ И ПОСЛЕ СМЕРТИ
     -- ==========================================
-    RunService.Stepped:Connect(function()
+    local function fullRefresh()
         local char = LocalPlayer.Character
         if not char then return end
-        local root = char:FindFirstChild("HumanoidRootPart")
-        local hum = char:FindFirstChildOfClass("Humanoid")
 
-        -- Принудительная установка скорости и прыжка (каждый кадр)
+        -- Характеристики
+        local hum = char:FindFirstChildOfClass("Humanoid")
         if hum then
             hum.WalkSpeed = SavedWalkSpeed
             hum.UseJumpPower = true
@@ -327,15 +249,18 @@ return function(Window)
             end
         end
 
-        -- Anti-Fling
-        if AntiFlingEnabled and root then
-            for _, player in ipairs(Players:GetPlayers()) do
-                if player ~= LocalPlayer and player.Character then
-                    local targetRoot = player.Character:FindFirstChild("HumanoidRootPart")
-                    if targetRoot and (root.Position - targetRoot.Position).Magnitude <= 30 then
-                        for _, part in ipairs(player.Character:GetDescendants()) do
-                            if part:IsA("BasePart") then
-                                part.CanCollide = false
+        -- Anti-Fling (повторно отключаем коллизию ближайших врагов)
+        if AntiFlingEnabled then
+            local myHRP = char:FindFirstChild("HumanoidRootPart")
+            if myHRP then
+                for _, player in ipairs(Players:GetPlayers()) do
+                    if player ~= LocalPlayer and player.Character then
+                        local targetHRP = player.Character:FindFirstChild("HumanoidRootPart")
+                        if targetHRP and (myHRP.Position - targetHRP.Position).Magnitude <= 30 then
+                            for _, part in ipairs(player.Character:GetDescendants()) do
+                                if part:IsA("BasePart") then
+                                    part.CanCollide = false
+                                end
                             end
                         end
                     end
@@ -343,41 +268,21 @@ return function(Window)
             end
         end
 
-        -- Strafe
-        if StrafeEnabled and root and hum then
-            local state = hum:GetState()
-            if state == Enum.HumanoidStateType.Freefall or state == Enum.HumanoidStateType.Jumping then
-                local moveDir = hum.MoveDirection
-                if moveDir.Magnitude > 0 then
-                    root.Velocity = moveDir * hum.WalkSpeed + Vector3.new(0, root.Velocity.Y, 0)
-                else
-                    root.Velocity = Vector3.new(0, root.Velocity.Y, 0)
-                end
-            end
+        -- Остальные функции (InfJump, Strafe, SpinBot) обновляются в реальном времени через свои циклы,
+        -- но здесь можно добавить принудительную активацию при необходимости.
+    end
+
+    -- Периодический вызов каждые 2 секунды
+    task.spawn(function()
+        while true do
+            task.wait(2)
+            fullRefresh()
         end
     end)
 
-    -- Бесконечный прыжок
-    UserInputService.JumpRequest:Connect(function()
-        if InfJumpEnabled then
-            local char = LocalPlayer.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if hum then
-                hum:ChangeState(Enum.HumanoidStateType.Jumping)
-            end
-        end
-    end)
-
-    -- Перезапуск бессмертия при возрождении
+    -- Дополнительное полное обновление при возрождении персонажа
     LocalPlayer.CharacterAdded:Connect(function()
-        if GodModeEnabled then
-            toggleGodModePhysics(false)
-            task.wait(0.1)
-            toggleGodModePhysics(true)
-            -- Обновляем флаг в интерфейсе
-            if Window and Window.Flags and Window.Flags["GodToggle"] then
-                Window.Flags["GodToggle"]:Set(true)
-            end
-        end
+        task.wait(0.1)
+        fullRefresh()
     end)
 end
