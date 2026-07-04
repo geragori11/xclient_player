@@ -17,6 +17,9 @@ return function(Window)
     -- Переменная для Anti-Fling
     local AntiFlingEnabled = false
 
+    -- Переменная для Strafe (управление в воздухе без инерции)
+    local StrafeEnabled = false
+
     local PlayerTab = Window:CreateTab("Player", 4483362458)
 
     -- ==========================================
@@ -80,6 +83,16 @@ return function(Window)
         end
     })
 
+    -- Strafe (воздушное управление без инерции)
+    PlayerTab:CreateToggle({
+        Name = "Strafe (Убирает инерцию в воздухе)",
+        CurrentValue = false,
+        Flag = "StrafeToggle",
+        Callback = function(Value)
+            StrafeEnabled = Value
+        end
+    })
+
     -- ==========================================
     -- ЗАЩИТА (Anti-Fling)
     -- ==========================================
@@ -136,7 +149,7 @@ return function(Window)
     -- ЦИКЛЫ ОБРАБОТКИ (ГЛОБАЛЬНЫЕ СЕРВИСЫ)
     -- ==========================================
     
-    -- Цикл для Noclip и Anti-Fling (работает каждый кадр перед рендером физики)
+    -- Цикл для Noclip, Anti-Fling и Strafe (работает каждый кадр перед рендером физики)
     RunService.Stepped:Connect(function()
         local MyCharacter = LocalPlayer.Character
         if not MyCharacter then return end
@@ -164,6 +177,25 @@ return function(Window)
                                 Part.CanCollide = false
                             end
                         end
+                    end
+                end
+            end
+        end
+
+        -- Обработка Strafe (управление в воздухе без инерции)
+        if StrafeEnabled and MyHRP then
+            local Humanoid = MyCharacter:FindFirstChildOfClass("Humanoid")
+            if Humanoid then
+                local state = Humanoid:GetState()
+                -- Применяем только в воздухе (свободное падение или прыжок)
+                if state == Enum.HumanoidStateType.Freefall or state == Enum.HumanoidStateType.Jumping then
+                    local moveDirection = Humanoid.MoveDirection
+                    if moveDirection.Magnitude > 0 then
+                        -- Движемся в указанном направлении с текущей скоростью бега, сохраняя вертикальную скорость
+                        MyHRP.Velocity = moveDirection * Humanoid.WalkSpeed + Vector3.new(0, MyHRP.Velocity.Y, 0)
+                    else
+                        -- Клавиши не нажаты – гасим горизонтальную скорость, персонаж зависает в воздухе
+                        MyHRP.Velocity = Vector3.new(0, MyHRP.Velocity.Y, 0)
                     end
                 end
             end
