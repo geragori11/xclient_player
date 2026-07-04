@@ -316,7 +316,7 @@ return function(Window)
     -- Цикл для пульсации скорости (Обход ММ2)
     task.spawn(function()
         while true do
-            task.wait(0.5)
+            task.wait(4)
             if MM2BypassEnabled and SavedWalkSpeed > 30 then
                 local Character = LocalPlayer.Character
                 local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
