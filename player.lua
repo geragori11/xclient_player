@@ -20,6 +20,147 @@ return function(Window)
     -- Переменная для Strafe (управление в воздухе без инерции)
     local StrafeEnabled = false
 
+    -- ==========================================
+    -- ПЕРЕМЕННЫЕ ДЛЯ НЕВИДИМОСТИ (TRINITY DODGE)
+    -- ==========================================
+    local InvisibilityEnabled = false
+    local InvisibilityKey = Enum.KeyCode.X
+    local GhostTransparency = 0.05
+    local DodgeSpeedMultiplier = 43
+    local VerticalPower = 9671405556917033397649407  -- большое число для вертикального смещения
+    local ShotWindow = 0.2
+
+    local CameraAnchor = nil
+    local Gyro = nil
+    local InvisibilityHeartbeat = nil  -- соединение Heartbeat
+
+    -- Вспомогательная функция установки прозрачности (как в Trinity)
+    local function setCharTransparency(transparency)
+        local char = LocalPlayer.Character
+        if not char then return end
+        for _, v in ipairs(char:GetDescendants()) do
+            if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then
+                v.Transparency = transparency
+            elseif v:IsA("Decal") then
+                v.Transparency = transparency
+            end
+        end
+    end
+
+    -- Функция включения/выключения невидимости
+    local function toggleInvisibility(enable)
+        if enable == InvisibilityEnabled then return end
+        InvisibilityEnabled = enable
+        local char = LocalPlayer.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+
+        if enable then
+            -- Создаём якорь для камеры, если его ещё нет
+            if not CameraAnchor then
+                CameraAnchor = Instance.new("Part")
+                CameraAnchor.Name = "TrinityInvisAnchor"
+                CameraAnchor.Transparency = 1
+                CameraAnchor.CanCollide = false
+                CameraAnchor.Anchored = true
+                CameraAnchor.Size = Vector3.new(1, 1, 1)
+                CameraAnchor.Parent = workspace
+            end
+            if not Gyro then
+                Gyro = Instance.new("BodyGyro")
+                Gyro.Name = "TrinityInvisGyro"
+                Gyro.MaxTorque = Vector3.new(0, 0, 0)
+                Gyro.P = 3000
+                Gyro.D = 50
+            end
+
+            setCharTransparency(GhostTransparency)
+            if root then
+                Gyro.Parent = root
+                Gyro.MaxTorque = Vector3.new(4e5, 4e5, 4e5)
+                -- Обновляем позицию якоря
+                CameraAnchor.CFrame = root.CFrame * CFrame.new(0, 2, 0)
+                workspace.CurrentCamera.CameraSubject = CameraAnchor
+            end
+
+            -- Запускаем цикл Heartbeat
+            if InvisibilityHeartbeat then
+                InvisibilityHeartbeat:Disconnect()
+            end
+            InvisibilityHeartbeat = RunService.Heartbeat:Connect(function()
+                if not InvisibilityEnabled then return end
+                local char = LocalPlayer.Character
+                local root = char and char:FindFirstChild("HumanoidRootPart")
+                local hum = char and char:FindFirstChildOfClass("Humanoid")
+                if not (char and root and hum) then return end
+
+                -- Обновляем позицию якоря камеры
+                CameraAnchor.CFrame = root.CFrame * CFrame.new(0, 2, 0)
+                workspace.CurrentCamera.CameraSubject = CameraAnchor
+
+                local isShooting = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) or
+                                   UserInputService:IsMouseButtonPressed(Enum.UserInputType.Touch)
+                local startCF = root.CFrame
+
+                -- Движение с увеличенной скоростью
+                if hum.MoveDirection.Magnitude > 0 then
+                    root.Velocity = Vector3.new(
+                        hum.MoveDirection.X * DodgeSpeedMultiplier,
+                        root.Velocity.Y,
+                        hum.MoveDirection.Z * DodgeSpeedMultiplier
+                    )
+                end
+
+                if isShooting then
+                    -- При стрельбе временно включаем коллизию и возвращаем на место
+                    root.CanCollide = true
+                    root.CFrame = startCF
+                    task.wait(ShotWindow)
+                    root.CanCollide = false
+                else
+                    -- Додж: отключаем коллизию, смещаем на огромное расстояние вниз, ждём кадр и возвращаем
+                    root.CanCollide = false
+                    Gyro.CFrame = startCF
+                    local rx = math.random(-1.7976931348623157e308, 1.7976931348623157e308)
+                    local rz = math.random(-1.7976931348623157e308, 1.7976931348623157e308)
+                    root.CFrame = startCF * CFrame.new(rx, -VerticalPower, rz)
+                    RunService.RenderStepped:Wait()
+                    if InvisibilityEnabled and root then
+                        root.CFrame = startCF
+                        root.CanCollide = true
+                    end
+                end
+            end)
+        else
+            -- Выключение режима
+            setCharTransparency(0)
+            if Gyro then
+                Gyro.Parent = nil
+            end
+            if root then
+                root.CanCollide = true
+                if CameraAnchor then
+                    root.CFrame = CameraAnchor.CFrame * CFrame.new(0, -2, 0)
+                end
+            end
+            if hum then
+                workspace.CurrentCamera.CameraSubject = hum
+            end
+            if InvisibilityHeartbeat then
+                InvisibilityHeartbeat:Disconnect()
+                InvisibilityHeartbeat = nil
+            end
+        end
+    end
+
+    -- Обработчик нажатия клавиши для невидимости (если задана)
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if input.KeyCode == InvisibilityKey then
+            toggleInvisibility(not InvisibilityEnabled)
+        end
+    end)
+
     local PlayerTab = Window:CreateTab("Player", 4483362458)
 
     -- ==========================================
@@ -146,6 +287,57 @@ return function(Window)
     })
 
     -- ==========================================
+    -- НОВЫЙ РЕЖИМ: НЕВИДИМОСТЬ (TRINITY DODGE)
+    -- ==========================================
+    PlayerTab:CreateSection("Невидимость (Trinity Dodge)")
+
+    PlayerTab:CreateToggle({
+        Name = "Включить невидимость",
+        CurrentValue = false,
+        Flag = "InvisibilityToggle",
+        Callback = function(Value)
+            toggleInvisibility(Value)
+        end
+    })
+
+    PlayerTab:CreateSlider({
+        Name = "Прозрачность",
+        Range = {0, 100},
+        Increment = 1,
+        Suffix = "%",
+        CurrentValue = 5,  -- 0.05 -> 5%
+        Flag = "GhostTransparencySlider",
+        Callback = function(Value)
+            GhostTransparency = Value / 100
+            if InvisibilityEnabled then
+                setCharTransparency(GhostTransparency)
+            end
+        end
+    })
+
+    PlayerTab:CreateSlider({
+        Name = "Скорость перемещения",
+        Range = {10, 200},
+        Increment = 1,
+        Suffix = " studs/s",
+        CurrentValue = 43,
+        Flag = "DodgeSpeedSlider",
+        Callback = function(Value)
+            DodgeSpeedMultiplier = Value
+        end
+    })
+
+    -- Настройка клавиши активации
+    PlayerTab:CreateKeybind({
+        Name = "Клавиша переключения",
+        CurrentKeybind = "X",
+        Flag = "InvisibilityKeybind",
+        Callback = function(Key)
+            InvisibilityKey = Key
+        end
+    })
+
+    -- ==========================================
     -- ЦИКЛЫ ОБРАБОТКИ (ГЛОБАЛЬНЫЕ СЕРВИСЫ)
     -- ==========================================
     
@@ -223,6 +415,15 @@ return function(Window)
             Humanoid.UseJumpPower = true
             Humanoid.JumpPower = SavedJumpPower
         end
+        -- Если невидимость была включена, применяем прозрачность заново
+        if InvisibilityEnabled then
+            setCharTransparency(GhostTransparency)
+            -- Переподключаем Gyro к новому RootPart
+            local root = Character:FindFirstChild("HumanoidRootPart")
+            if root and Gyro then
+                Gyro.Parent = root
+            end
+        end
     end)
 
     -- ==========================================
@@ -268,8 +469,10 @@ return function(Window)
             end
         end
 
-        -- Остальные функции (InfJump, Strafe, SpinBot) обновляются в реальном времени через свои циклы,
-        -- но здесь можно добавить принудительную активацию при необходимости.
+        -- Обновление прозрачности для невидимости
+        if InvisibilityEnabled then
+            setCharTransparency(GhostTransparency)
+        end
     end
 
     -- Периодический вызов каждые 2 секунды
