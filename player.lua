@@ -322,7 +322,7 @@ return function(Window)
                 local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
                 if Humanoid then
                     Humanoid.WalkSpeed = SavedWalkSpeed
-                    task.wait(0.1) -- Удерживаем высокую скорость короткое мгновение для рывка
+                    task.wait(0.5) -- Удерживаем высокую скорость короткое мгновение для рывка
                     if MM2BypassEnabled and SavedWalkSpeed > 30 then
                         Humanoid.WalkSpeed = 30
                     end
