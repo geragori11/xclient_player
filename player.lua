@@ -20,6 +20,9 @@ return function(Window)
     -- Переменная для Strafe (управление в воздухе без инерции)
     local StrafeEnabled = false
 
+    -- Переменная для Обхода ММ2
+    local MM2BypassEnabled = false
+
     local PlayerTab = Window:CreateTab("Player", 4483362458)
 
     -- ==========================================
@@ -38,7 +41,32 @@ return function(Window)
             SavedWalkSpeed = Value -- Сохраняем значение
             local Character = LocalPlayer.Character
             local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
-            if Humanoid then Humanoid.WalkSpeed = Value end
+            if Humanoid then 
+                if MM2BypassEnabled and Value > 30 then
+                    Humanoid.WalkSpeed = 30
+                else
+                    Humanoid.WalkSpeed = Value 
+                end
+            end
+        end
+    })
+
+    -- Переключатель для обхода MM2
+    PlayerTab:CreateToggle({
+        Name = "Обход ММ2 (Для скорости > 30)",
+        CurrentValue = false,
+        Flag = "MM2BypassToggle",
+        Callback = function(Value)
+            MM2BypassEnabled = Value
+            local Character = LocalPlayer.Character
+            local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+            if Humanoid then
+                if Value and SavedWalkSpeed > 30 then
+                    Humanoid.WalkSpeed = 30
+                else
+                    Humanoid.WalkSpeed = SavedWalkSpeed
+                end
+            end
         end
     })
 
@@ -219,7 +247,11 @@ return function(Window)
         local Humanoid = Character:WaitForChild("Humanoid", 3)
         if Humanoid then
             task.wait(0.2) -- Легкая задержка, чтобы игра не успела сбросить наши настройки
-            Humanoid.WalkSpeed = SavedWalkSpeed
+            if MM2BypassEnabled and SavedWalkSpeed > 30 then
+                Humanoid.WalkSpeed = 30
+            else
+                Humanoid.WalkSpeed = SavedWalkSpeed
+            end
             Humanoid.UseJumpPower = true
             Humanoid.JumpPower = SavedJumpPower
         end
@@ -235,7 +267,11 @@ return function(Window)
         -- Характеристики
         local hum = char:FindFirstChildOfClass("Humanoid")
         if hum then
-            hum.WalkSpeed = SavedWalkSpeed
+            if MM2BypassEnabled and SavedWalkSpeed > 30 then
+                hum.WalkSpeed = 30
+            else
+                hum.WalkSpeed = SavedWalkSpeed
+            end
             hum.UseJumpPower = true
             hum.JumpPower = SavedJumpPower
         end
@@ -267,9 +303,6 @@ return function(Window)
                 end
             end
         end
-
-        -- Остальные функции (InfJump, Strafe, SpinBot) обновляются в реальном времени через свои циклы,
-        -- но здесь можно добавить принудительную активацию при необходимости.
     end
 
     -- Периодический вызов каждые 2 секунды
@@ -277,6 +310,24 @@ return function(Window)
         while true do
             task.wait(2)
             fullRefresh()
+        end
+    end)
+
+    -- Цикл для пульсации скорости (Обход ММ2)
+    task.spawn(function()
+        while true do
+            task.wait(0.5)
+            if MM2BypassEnabled and SavedWalkSpeed > 30 then
+                local Character = LocalPlayer.Character
+                local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+                if Humanoid then
+                    Humanoid.WalkSpeed = SavedWalkSpeed
+                    task.wait(0.1) -- Удерживаем высокую скорость короткое мгновение для рывка
+                    if MM2BypassEnabled and SavedWalkSpeed > 30 then
+                        Humanoid.WalkSpeed = 30
+                    end
+                end
+            end
         end
     end)
 
