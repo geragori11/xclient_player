@@ -313,7 +313,7 @@ return function(Window)
         end
     end)
 
-    -- Цикл для пульсации скорости (Обход ММ2)
+-- Цикл для пульсации скорости (Обход ММ2)
     task.spawn(function()
         while true do
             task.wait(1.2)
@@ -322,7 +322,14 @@ return function(Window)
                 local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
                 if Humanoid then
                     Humanoid.WalkSpeed = SavedWalkSpeed
-                    task.wait(0.5) -- Удерживаем высокую скорость короткое мгновение для рывка
+                    
+                    -- Динамическое время рывка: если скорость выше 65, уменьшаем до 0.1с
+                    if SavedWalkSpeed > 65 then
+                        task.wait(0.1)
+                    else
+                        task.wait(0.5)
+                    end
+                    
                     if MM2BypassEnabled and SavedWalkSpeed > 30 then
                         Humanoid.WalkSpeed = 30
                     end
