@@ -4,33 +4,33 @@ return function(Window)
     local UserInputService = game:GetService("UserInputService")
     local LocalPlayer = Players.LocalPlayer
 
-    -- Переменные для перемещения и стен
+    -- Переменные состояния перемещения
     local NoclipEnabled = false
     local InfJumpEnabled = false
     local SpinSpeed = 50
     
-    -- Переменные для расширенных режимов Спинбота
+    -- Переменные для режимов Спинбота
     local CurrentSpinMode = "Классический"
     local SpinBotActive = false
     local PhysicsSpinObj = nil
     local PhysicsAttachment = nil
 
-    -- Переменные для сохранения характеристик после смерти
+    -- Сохранение характеристик персонажа
     local SavedWalkSpeed = 16
     local SavedJumpPower = 50
 
-    -- Переменная для Anti-Fling
+    -- Переменные для защиты и обходов
     local AntiFlingEnabled = false
-
-    -- Переменная для Strafe (управление в воздухе без инерции)
     local StrafeEnabled = false
-
-    -- Переменная для Обхода ММ2
     local MM2BypassEnabled = false
 
+    -- Фиксированные углы для нового режима дерганья
+    local TwitchAngles = {60, 120, 180, 240, 300, 360}
+
+    -- Создание вкладки в Rayfield UI
     local PlayerTab = Window:CreateTab("Player", 4483362458)
 
-    -- Функция безопасной очистки физических объектов спинбота
+    -- Функция очистки физических объектов спинбота
     local function stopPhysicsSpin()
         if PhysicsSpinObj then 
             pcall(function() PhysicsSpinObj:Destroy() end) 
@@ -43,7 +43,7 @@ return function(Window)
     end
 
     -- ==========================================
-    -- ХАРАКТЕРИСТИКИ
+    -- РАЗДЕЛ: ХАРАКТЕРИСТИКИ
     -- ==========================================
     PlayerTab:CreateSection("Характеристики персонажа")
 
@@ -58,12 +58,8 @@ return function(Window)
             SavedWalkSpeed = Value
             local Character = LocalPlayer.Character
             local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
-            if Humanoid then 
-                if MM2BypassEnabled and Value > 30 then
-                    Humanoid.WalkSpeed = 30
-                else
-                    Humanoid.WalkSpeed = Value 
-                end
+            if Humanoid and not MM2BypassEnabled then 
+                Humanoid.WalkSpeed = Value 
             end
         end
     })
@@ -105,7 +101,7 @@ return function(Window)
     })
 
     -- ==========================================
-    -- ПЕРЕМЕЩЕНИЕ И ОБХОД СТЕН
+    -- РАЗДЕЛ: ПЕРЕМЕЩЕНИЕ И СТЕНЫ
     -- ==========================================
     PlayerTab:CreateSection("Перемещение и Стены")
 
@@ -137,7 +133,7 @@ return function(Window)
     })
 
     -- ==========================================
-    -- ЗАЩИТА (Anti-Fling)
+    -- РАЗДЕЛ: ЗАЩИТА
     -- ==========================================
     PlayerTab:CreateSection("Защита")
 
@@ -151,7 +147,7 @@ return function(Window)
     })
 
     -- ==========================================
-    -- ФАН УТИЛИТЫ
+    -- РАЗДЕЛ: ФАН УТИЛИТЫ (СПИНБОТ)
     -- ==========================================
     PlayerTab:CreateSection("Фан утилиты")
 
@@ -166,11 +162,11 @@ return function(Window)
 
     PlayerTab:CreateDropdown({
         Name = "Режим Спинбота",
-        Options = {"Классический", "Физический (Плавный)", "Дрожание (Jitter)", "Безумный (XYZ)"},
+        Options = {"Классический", "Физический (Плавный)", "Дрожание (Jitter)", "Безумный (XYZ)", "Дерганье (Ступенчатое)"},
         CurrentOption = "Классический",
         Flag = "SpinModeDropdown",
         Callback = function(Option)
-            -- Защита от возвращения таблицы в Rayfield UI
+            -- Фикс Rayfield UI (извлечение строки из таблицы, если необходимо)
             local CleanOption = type(Option) == "table" and Option[1] or Option
             if type(CleanOption) == "string" then
                 CurrentSpinMode = CleanOption
@@ -191,10 +187,9 @@ return function(Window)
     })
 
     -- ==========================================
-    -- ЦИКЛЫ ОБРАБОТКИ (ГЛОБАЛЬНЫЕ СЕРВИСЫ)
+    -- ОСНОВНОЙ ПОТОК ОБРАБОТКИ (КАЖДЫЙ КАДР)
     -- ==========================================
     
-    -- Главный поток обработки физики и перемещений
     RunService.Stepped:Connect(function()
         local MyCharacter = LocalPlayer.Character
         if not MyCharacter then return end
@@ -202,7 +197,16 @@ return function(Window)
         local MyHRP = MyCharacter:FindFirstChild("HumanoidRootPart")
         local MyHumanoid = MyCharacter:FindFirstChildOfClass("Humanoid")
 
-        -- Обработка Noclip
+        -- Стабилизация характеристик (каждый кадр заменяет старый fullRefresh)
+        if MyHumanoid then
+            if not MM2BypassEnabled then
+                MyHumanoid.WalkSpeed = SavedWalkSpeed
+            end
+            MyHumanoid.UseJumpPower = true
+            MyHumanoid.JumpPower = SavedJumpPower
+        end
+
+        -- Логика Noclip
         if NoclipEnabled then
             for _, Part in ipairs(MyCharacter:GetDescendants()) do
                 if Part:IsA("BasePart") then
@@ -211,7 +215,7 @@ return function(Window)
             end
         end
 
-        -- Обработка Anti-Fling
+        -- Логика Anti-Fling
         if AntiFlingEnabled and MyHRP then
             for _, Player in ipairs(Players:GetPlayers()) do
                 if Player ~= LocalPlayer and Player.Character then
@@ -227,7 +231,7 @@ return function(Window)
             end
         end
 
-        -- Обработка Strafe
+        -- Логика Strafe (контроль в воздухе)
         if StrafeEnabled and MyHRP and MyHumanoid then
             local state = MyHumanoid:GetState()
             if state == Enum.HumanoidStateType.Freefall or state == Enum.HumanoidStateType.Jumping then
@@ -240,9 +244,9 @@ return function(Window)
             end
         end
 
-        -- ЦЕНТРАЛЬНАЯ ЛОГИКА СПИНБОТА
+        -- Логика Спинбота
         if SpinBotActive and MyHRP and MyHumanoid then
-            -- Настройка стейтов Humanoid во избежание сопротивления игры
+            -- Управление внутренними стейтами Humanoid для совместимости с движком
             if CurrentSpinMode == "Безумный (XYZ)" then
                 if not MyHumanoid.PlatformStand then MyHumanoid.PlatformStand = true end
             else
@@ -265,8 +269,12 @@ return function(Window)
                 local jitter = math.rad(math.random(-180, 180))
                 MyHRP.CFrame = MyHRP.CFrame * CFrame.Angles(0, jitter, 0)
                 
+            elseif CurrentSpinMode == "Дерганье (Ступенчатое)" then
+                stopPhysicsSpin()
+                local randomAngle = TwitchAngles[math.random(1, #TwitchAngles)]
+                MyHRP.CFrame = MyHRP.CFrame * CFrame.Angles(0, math.rad(randomAngle), 0)
+                
             elseif CurrentSpinMode == "Физический (Плавный)" then
-                -- Динамическое создание физического тела вращения, если его нет
                 if not PhysicsSpinObj or PhysicsSpinObj.Parent ~= MyHRP then
                     stopPhysicsSpin()
                     
@@ -284,7 +292,7 @@ return function(Window)
                 PhysicsSpinObj.AngularVelocity = Vector3.new(0, SpinSpeed / 10, 0)
             end
         else
-            -- Если спинбот отключен, возвращаем персонажу стандартные настройки
+            -- Сброс настроек при выключении спинбота
             stopPhysicsSpin()
             if MyHumanoid then
                 if not MyHumanoid.AutoRotate then MyHumanoid.AutoRotate = true end
@@ -293,7 +301,7 @@ return function(Window)
         end
     end)
 
-    -- Отслеживание нажатия пробела для Inf Jump
+    -- Бесконечный прыжок (JumpRequest)
     UserInputService.JumpRequest:Connect(function()
         if InfJumpEnabled then
             local Character = LocalPlayer.Character
@@ -304,13 +312,13 @@ return function(Window)
         end
     end)
 
-    -- Очистка ссылок при смерти персонажа
+    -- Восстановление характеристик после респавна
     LocalPlayer.CharacterAdded:Connect(function(Character)
         stopPhysicsSpin()
         
         local Humanoid = Character:WaitForChild("Humanoid", 3)
         if Humanoid then
-            task.wait(0.2)
+            task.wait(0.1)
             if MM2BypassEnabled and SavedWalkSpeed > 30 then
                 Humanoid.WalkSpeed = 30
             else
@@ -321,59 +329,7 @@ return function(Window)
         end
     end)
 
-    -- ==========================================
-    -- АВТО-ОБНОВЛЕНИЕ ВСЕХ НАСТРОЕК КАЖДЫЕ 2 СЕКУНДЫ
-    -- ==========================================
-    local function fullRefresh()
-        local char = LocalPlayer.Character
-        if not char then return end
-
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if hum then
-            if MM2BypassEnabled and SavedWalkSpeed > 30 then
-                hum.WalkSpeed = 30
-            else
-                hum.WalkSpeed = SavedWalkSpeed
-            end
-            hum.UseJumpPower = true
-            hum.JumpPower = SavedJumpPower
-        end
-
-        if NoclipEnabled then
-            for _, part in ipairs(char:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = false
-                end
-            end
-        end
-
-        if AntiFlingEnabled then
-            local myHRP = char:FindFirstChild("HumanoidRootPart")
-            if myHRP then
-                for _, player in ipairs(Players:GetPlayers()) do
-                    if player ~= LocalPlayer and player.Character then
-                        local targetHRP = player.Character:FindFirstChild("HumanoidRootPart")
-                        if targetHRP and (myHRP.Position - targetHRP.Position).Magnitude <= 30 then
-                            for _, part in ipairs(player.Character:GetDescendants()) do
-                                if part:IsA("BasePart") then
-                                    part.CanCollide = false
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-
-    task.spawn(function()
-        while true do
-            task.wait(2)
-            fullRefresh()
-        end
-    end)
-
-    -- Цикл для пульсации скорости (Обход ММ2)
+    -- Независимый поток для пульсации обхода скорости (ММ2)
     task.spawn(function()
         while true do
             task.wait(1.2)
@@ -395,10 +351,5 @@ return function(Window)
                 end
             end
         end
-    end)
-
-    LocalPlayer.CharacterAdded:Connect(function()
-        task.wait(0.1)
-        fullRefresh()
     end)
 end
