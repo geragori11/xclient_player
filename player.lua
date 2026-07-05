@@ -42,35 +42,41 @@ return function(Window)
         if SpinRenderConnection then SpinRenderConnection:Disconnect(); SpinRenderConnection = nil end
         stopPhysicsSpin()
 
-        if not SpinBotActive then return end
-
         local Character = LocalPlayer.Character
+        local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
         local RootPart = Character and Character:FindFirstChild("HumanoidRootPart")
-        if not RootPart then return end
+
+        -- Возвращаем Humanoid в стандартное состояние перед настройкой нового режима
+        if Humanoid then
+            Humanoid.AutoRotate = true
+            Humanoid.PlatformStand = false
+        end
+
+        -- Если спинбот выключен или персонаж не прогрузился — выходим
+        if not SpinBotActive or not RootPart or not Humanoid then return end
+
+        -- Отключаем заводской автоповорот Roblox, чтобы игра не мешала скрипту
+        Humanoid.AutoRotate = false
 
         if CurrentSpinMode == "Классический" then
-            SpinRenderConnection = RunService.Heartbeat:Connect(function()
-                local Char = LocalPlayer.Character
-                local RP = Char and Char:FindFirstChild("HumanoidRootPart")
-                if RP then
-                    RP.CFrame = RP.CFrame * CFrame.Angles(0, math.rad(SpinSpeed), 0)
+            SpinRenderConnection = RunService.Stepped:Connect(function()
+                if RootPart and RootPart.Parent then
+                    RootPart.CFrame = RootPart.CFrame * CFrame.Angles(0, math.rad(SpinSpeed), 0)
                 end
             end)
         elseif CurrentSpinMode == "Безумный (XYZ)" then
-            SpinRenderConnection = RunService.Heartbeat:Connect(function()
-                local Char = LocalPlayer.Character
-                local RP = Char and Char:FindFirstChild("HumanoidRootPart")
-                if RP then
-                    RP.CFrame = RP.CFrame * CFrame.Angles(math.rad(SpinSpeed), math.rad(SpinSpeed), math.rad(SpinSpeed))
+            -- Включаем PlatformStand, чтобы разблокировать оси наклона X и Z
+            Humanoid.PlatformStand = true
+            SpinRenderConnection = RunService.Stepped:Connect(function()
+                if RootPart and RootPart.Parent then
+                    RootPart.CFrame = RootPart.CFrame * CFrame.Angles(math.rad(SpinSpeed), math.rad(SpinSpeed), math.rad(SpinSpeed))
                 end
             end)
         elseif CurrentSpinMode == "Дрожание (Jitter)" then
-            SpinRenderConnection = RunService.Heartbeat:Connect(function()
-                local Char = LocalPlayer.Character
-                local RP = Char and Char:FindFirstChild("HumanoidRootPart")
-                if RP then
+            SpinRenderConnection = RunService.Stepped:Connect(function()
+                if RootPart and RootPart.Parent then
                     local jitter = math.rad(math.random(-180, 180))
-                    RP.CFrame = RP.CFrame * CFrame.Angles(0, jitter, 0)
+                    RootPart.CFrame = RootPart.CFrame * CFrame.Angles(0, jitter, 0)
                 end
             end)
         elseif CurrentSpinMode == "Физический (Плавный)" then
@@ -82,7 +88,8 @@ return function(Window)
             PhysicsSpinObj.Name = "SpinVelocity"
             PhysicsSpinObj.Attachment0 = PhysicsAttachment
             PhysicsSpinObj.MaxTorque = math.huge
-            PhysicsSpinObj.AngularVelocity = Vector3.new(0, SpinSpeed / 10, 0) -- Делим, так как у AngularVelocity другие физические единицы
+            PhysicsSpinObj.AngularVelocity = Vector3.new(0, SpinSpeed / 10, 0) -- Физическая скорость
+            PhysicsSpinObj.RelativeTo = Enum.ActuatorRelativeTo.Attachment0
             PhysicsSpinObj.Parent = RootPart
         end
     end
@@ -100,7 +107,7 @@ return function(Window)
         CurrentValue = 16,
         Flag = "WalkSpeedSlider",
         Callback = function(Value)
-            SavedWalkSpeed = Value -- Сохраняем значение
+            SavedWalkSpeed = Value
             local Character = LocalPlayer.Character
             local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
             if Humanoid then 
@@ -113,7 +120,6 @@ return function(Window)
         end
     })
 
-    -- Переключатель для обхода MM2
     PlayerTab:CreateToggle({
         Name = "Обход ММ2 (Для скорости > 30)",
         CurrentValue = false,
@@ -140,7 +146,7 @@ return function(Window)
         CurrentValue = 50,
         Flag = "JumpPowerSlider",
         Callback = function(Value)
-            SavedJumpPower = Value -- Сохраняем значение
+            SavedJumpPower = Value
             local Character = LocalPlayer.Character
             local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
             if Humanoid then 
@@ -173,7 +179,6 @@ return function(Window)
         end
     })
 
-    -- Strafe (воздушное управление без инерции)
     PlayerTab:CreateToggle({
         Name = "Strafe (Убирает инерцию в воздухе)",
         CurrentValue = false,
@@ -234,8 +239,10 @@ return function(Window)
         Flag = "SpinSpeedSlider",
         Callback = function(Value) 
             SpinSpeed = Value 
-            if SpinBotActive and CurrentSpinMode == "Физический (Плавный)" and PhysicsSpinObj then
-                PhysicsSpinObj.AngularVelocity = Vector3.new(0, Value / 10, 0)
+            if SpinBotActive then
+                if CurrentSpinMode == "Физический (Плавный)" and PhysicsSpinObj then
+                    PhysicsSpinObj.AngularVelocity = Vector3.new(0, Value / 10, 0)
+                end
             end
         end
     })
@@ -244,7 +251,6 @@ return function(Window)
     -- ЦИКЛЫ ОБРАБОТКИ (ГЛОБАЛЬНЫЕ СЕРВИСЫ)
     -- ==========================================
     
-    -- Цикл для Noclip, Anti-Fling и Strafe
     RunService.Stepped:Connect(function()
         local MyCharacter = LocalPlayer.Character
         if not MyCharacter then return end
@@ -306,7 +312,7 @@ return function(Window)
 
     -- Авто-коррекция и восстановление состояний при возрождении
     LocalPlayer.CharacterAdded:Connect(function(Character)
-        stopPhysicsSpin() -- Удаляем старые ссылки, так как части персонажа обновились
+        stopPhysicsSpin()
         
         local Humanoid = Character:WaitForChild("Humanoid", 3)
         if Humanoid then
@@ -320,7 +326,7 @@ return function(Window)
             Humanoid.JumpPower = SavedJumpPower
         end
 
-        -- Если спинбот был включен, перезапускаем его на новом теле
+        -- Перезапускаем спинбот на новом теле, если он был активен
         task.wait(0.1)
         if SpinBotActive then
             startSpinBot()
@@ -372,7 +378,6 @@ return function(Window)
         end
     end
 
-    -- Периодический вызов обновления характеристик
     task.spawn(function()
         while true do
             task.wait(2)
@@ -404,7 +409,6 @@ return function(Window)
         end
     end)
 
-    -- Дополнительное полное обновление при смене персонажа
     LocalPlayer.CharacterAdded:Connect(function()
         task.wait(0.1)
         fullRefresh()
