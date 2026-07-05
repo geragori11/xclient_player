@@ -26,6 +26,7 @@ return function(Window)
 
     -- Фиксированные углы для нового режима дерганья
     local TwitchAngles = {60, 120, 180, 240, 300, 360}
+    local TwitchAngles2 = {120, 240, 360}
 
     -- Создание вкладки в Rayfield UI
     local PlayerTab = Window:CreateTab("Player", 4483362458)
@@ -162,7 +163,7 @@ return function(Window)
 
     PlayerTab:CreateDropdown({
         Name = "Режим Спинбота",
-        Options = {"Классический", "Физический (Плавный)", "Дрожание (Jitter)", "Безумный (XYZ)", "Дерганье (Ступенчатое)"},
+        Options = {"Классический", "Физический", "Jitter", "Безумный ", "Дерганье 6 оси", "Дерганье 3 оси"},
         CurrentOption = "Классический",
         Flag = "SpinModeDropdown",
         Callback = function(Option)
@@ -247,7 +248,7 @@ return function(Window)
         -- Логика Спинбота
         if SpinBotActive and MyHRP and MyHumanoid then
             -- Управление внутренними стейтами Humanoid для совместимости с движком
-            if CurrentSpinMode == "Безумный (XYZ)" then
+            if CurrentSpinMode == "Безумный" then
                 if not MyHumanoid.PlatformStand then MyHumanoid.PlatformStand = true end
             else
                 if MyHumanoid.PlatformStand then MyHumanoid.PlatformStand = false end
@@ -260,18 +261,23 @@ return function(Window)
                 stopPhysicsSpin()
                 MyHRP.CFrame = MyHRP.CFrame * CFrame.Angles(0, math.rad(SpinSpeed), 0)
                 
-            elseif CurrentSpinMode == "Безумный (XYZ)" then
+            elseif CurrentSpinMode == "Безумный" then
                 stopPhysicsSpin()
                 MyHRP.CFrame = MyHRP.CFrame * CFrame.Angles(math.rad(SpinSpeed), math.rad(SpinSpeed), math.rad(SpinSpeed))
                 
-            elseif CurrentSpinMode == "Дрожание (Jitter)" then
+            elseif CurrentSpinMode == "Jitter" then
                 stopPhysicsSpin()
                 local jitter = math.rad(math.random(-180, 180))
                 MyHRP.CFrame = MyHRP.CFrame * CFrame.Angles(0, jitter, 0)
                 
-            elseif CurrentSpinMode == "Дерганье (Ступенчатое)" then
+            elseif CurrentSpinMode == "Дерганье 6 оси" then
                 stopPhysicsSpin()
                 local randomAngle = TwitchAngles[math.random(1, #TwitchAngles)]
+                MyHRP.CFrame = MyHRP.CFrame * CFrame.Angles(0, math.rad(randomAngle), 0)
+
+            elseif CurrentSpinMode == "Дерганье 3 оси" then
+                stopPhysicsSpin()
+                local randomAngle = TwitchAngles[math.random(1, #TwitchAngles2)]
                 MyHRP.CFrame = MyHRP.CFrame * CFrame.Angles(0, math.rad(randomAngle), 0)
                 
             elseif CurrentSpinMode == "Физический (Плавный)" then
