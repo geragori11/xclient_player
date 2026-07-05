@@ -4,11 +4,10 @@ return function(Window)
     local UserInputService = game:GetService("UserInputService")
     local LocalPlayer = Players.LocalPlayer
 
-    -- Переменные для новых функций
+    -- Переменные для перемещения и стен
     local NoclipEnabled = false
     local InfJumpEnabled = false
     local SpinSpeed = 50
-    local SpinRenderConnection = nil
     
     -- Переменные для расширенных режимов Спинбота
     local CurrentSpinMode = "Классический"
@@ -31,66 +30,15 @@ return function(Window)
 
     local PlayerTab = Window:CreateTab("Player", 4483362458)
 
-    -- Функция очистки физических объектов спинбота
+    -- Функция безопасной очистки физических объектов спинбота
     local function stopPhysicsSpin()
-        if PhysicsSpinObj then PhysicsSpinObj:Destroy(); PhysicsSpinObj = nil end
-        if PhysicsAttachment then PhysicsAttachment:Destroy(); PhysicsAttachment = nil end
-    end
-
-    -- Функция запуска / обновления спинбота
-    local function startSpinBot()
-        if SpinRenderConnection then SpinRenderConnection:Disconnect(); SpinRenderConnection = nil end
-        stopPhysicsSpin()
-
-        local Character = LocalPlayer.Character
-        local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
-        local RootPart = Character and Character:FindFirstChild("HumanoidRootPart")
-
-        -- Возвращаем Humanoid в стандартное состояние перед настройкой нового режима
-        if Humanoid then
-            Humanoid.AutoRotate = true
-            Humanoid.PlatformStand = false
+        if PhysicsSpinObj then 
+            pcall(function() PhysicsSpinObj:Destroy() end) 
+            PhysicsSpinObj = nil 
         end
-
-        -- Если спинбот выключен или персонаж не прогрузился — выходим
-        if not SpinBotActive or not RootPart or not Humanoid then return end
-
-        -- Отключаем заводской автоповорот Roblox, чтобы игра не мешала скрипту
-        Humanoid.AutoRotate = false
-
-        if CurrentSpinMode == "Классический" then
-            SpinRenderConnection = RunService.Stepped:Connect(function()
-                if RootPart and RootPart.Parent then
-                    RootPart.CFrame = RootPart.CFrame * CFrame.Angles(0, math.rad(SpinSpeed), 0)
-                end
-            end)
-        elseif CurrentSpinMode == "Безумный (XYZ)" then
-            -- Включаем PlatformStand, чтобы разблокировать оси наклона X и Z
-            Humanoid.PlatformStand = true
-            SpinRenderConnection = RunService.Stepped:Connect(function()
-                if RootPart and RootPart.Parent then
-                    RootPart.CFrame = RootPart.CFrame * CFrame.Angles(math.rad(SpinSpeed), math.rad(SpinSpeed), math.rad(SpinSpeed))
-                end
-            end)
-        elseif CurrentSpinMode == "Дрожание (Jitter)" then
-            SpinRenderConnection = RunService.Stepped:Connect(function()
-                if RootPart and RootPart.Parent then
-                    local jitter = math.rad(math.random(-180, 180))
-                    RootPart.CFrame = RootPart.CFrame * CFrame.Angles(0, jitter, 0)
-                end
-            end)
-        elseif CurrentSpinMode == "Физический (Плавный)" then
-            PhysicsAttachment = Instance.new("Attachment")
-            PhysicsAttachment.Name = "SpinAttachment"
-            PhysicsAttachment.Parent = RootPart
-
-            PhysicsSpinObj = Instance.new("AngularVelocity")
-            PhysicsSpinObj.Name = "SpinVelocity"
-            PhysicsSpinObj.Attachment0 = PhysicsAttachment
-            PhysicsSpinObj.MaxTorque = math.huge
-            PhysicsSpinObj.AngularVelocity = Vector3.new(0, SpinSpeed / 10, 0) -- Физическая скорость
-            PhysicsSpinObj.RelativeTo = Enum.ActuatorRelativeTo.Attachment0
-            PhysicsSpinObj.Parent = RootPart
+        if PhysicsAttachment then 
+            pcall(function() PhysicsAttachment:Destroy() end) 
+            PhysicsAttachment = nil 
         end
     end
 
@@ -213,7 +161,6 @@ return function(Window)
         Flag = "SpinBotToggle",
         Callback = function(Value)
             SpinBotActive = Value
-            startSpinBot()
         end
     })
 
@@ -223,9 +170,10 @@ return function(Window)
         CurrentOption = "Классический",
         Flag = "SpinModeDropdown",
         Callback = function(Option)
-            CurrentSpinMode = Option
-            if SpinBotActive then
-                startSpinBot()
+            -- Защита от возвращения таблицы в Rayfield UI
+            local CleanOption = type(Option) == "table" and Option[1] or Option
+            if type(CleanOption) == "string" then
+                CurrentSpinMode = CleanOption
             end
         end
     })
@@ -239,11 +187,6 @@ return function(Window)
         Flag = "SpinSpeedSlider",
         Callback = function(Value) 
             SpinSpeed = Value 
-            if SpinBotActive then
-                if CurrentSpinMode == "Физический (Плавный)" and PhysicsSpinObj then
-                    PhysicsSpinObj.AngularVelocity = Vector3.new(0, Value / 10, 0)
-                end
-            end
         end
     })
 
@@ -251,11 +194,13 @@ return function(Window)
     -- ЦИКЛЫ ОБРАБОТКИ (ГЛОБАЛЬНЫЕ СЕРВИСЫ)
     -- ==========================================
     
+    -- Главный поток обработки физики и перемещений
     RunService.Stepped:Connect(function()
         local MyCharacter = LocalPlayer.Character
         if not MyCharacter then return end
 
         local MyHRP = MyCharacter:FindFirstChild("HumanoidRootPart")
+        local MyHumanoid = MyCharacter:FindFirstChildOfClass("Humanoid")
 
         -- Обработка Noclip
         if NoclipEnabled then
@@ -283,18 +228,67 @@ return function(Window)
         end
 
         -- Обработка Strafe
-        if StrafeEnabled and MyHRP then
-            local Humanoid = MyCharacter:FindFirstChildOfClass("Humanoid")
-            if Humanoid then
-                local state = Humanoid:GetState()
-                if state == Enum.HumanoidStateType.Freefall or state == Enum.HumanoidStateType.Jumping then
-                    local moveDirection = Humanoid.MoveDirection
-                    if moveDirection.Magnitude > 0 then
-                        MyHRP.Velocity = moveDirection * Humanoid.WalkSpeed + Vector3.new(0, MyHRP.Velocity.Y, 0)
-                    else
-                        MyHRP.Velocity = Vector3.new(0, MyHRP.Velocity.Y, 0)
-                    end
+        if StrafeEnabled and MyHRP and MyHumanoid then
+            local state = MyHumanoid:GetState()
+            if state == Enum.HumanoidStateType.Freefall or state == Enum.HumanoidStateType.Jumping then
+                local moveDirection = MyHumanoid.MoveDirection
+                if moveDirection.Magnitude > 0 then
+                    MyHRP.Velocity = moveDirection * MyHumanoid.WalkSpeed + Vector3.new(0, MyHRP.Velocity.Y, 0)
+                else
+                    MyHRP.Velocity = Vector3.new(0, MyHRP.Velocity.Y, 0)
                 end
+            end
+        end
+
+        -- ЦЕНТРАЛЬНАЯ ЛОГИКА СПИНБОТА
+        if SpinBotActive and MyHRP and MyHumanoid then
+            -- Настройка стейтов Humanoid во избежание сопротивления игры
+            if CurrentSpinMode == "Безумный (XYZ)" then
+                if not MyHumanoid.PlatformStand then MyHumanoid.PlatformStand = true end
+            else
+                if MyHumanoid.PlatformStand then MyHumanoid.PlatformStand = false end
+            end
+
+            if MyHumanoid.AutoRotate then MyHumanoid.AutoRotate = false end
+
+            -- Выполнение режимов вращения
+            if CurrentSpinMode == "Классический" then
+                stopPhysicsSpin()
+                MyHRP.CFrame = MyHRP.CFrame * CFrame.Angles(0, math.rad(SpinSpeed), 0)
+                
+            elseif CurrentSpinMode == "Безумный (XYZ)" then
+                stopPhysicsSpin()
+                MyHRP.CFrame = MyHRP.CFrame * CFrame.Angles(math.rad(SpinSpeed), math.rad(SpinSpeed), math.rad(SpinSpeed))
+                
+            elseif CurrentSpinMode == "Дрожание (Jitter)" then
+                stopPhysicsSpin()
+                local jitter = math.rad(math.random(-180, 180))
+                MyHRP.CFrame = MyHRP.CFrame * CFrame.Angles(0, jitter, 0)
+                
+            elseif CurrentSpinMode == "Физический (Плавный)" then
+                -- Динамическое создание физического тела вращения, если его нет
+                if not PhysicsSpinObj or PhysicsSpinObj.Parent ~= MyHRP then
+                    stopPhysicsSpin()
+                    
+                    PhysicsAttachment = Instance.new("Attachment")
+                    PhysicsAttachment.Name = "SpinAttachment"
+                    PhysicsAttachment.Parent = MyHRP
+
+                    PhysicsSpinObj = Instance.new("AngularVelocity")
+                    PhysicsSpinObj.Name = "SpinVelocity"
+                    PhysicsSpinObj.Attachment0 = PhysicsAttachment
+                    PhysicsSpinObj.MaxTorque = math.huge
+                    PhysicsSpinObj.RelativeTo = Enum.ActuatorRelativeTo.Attachment0
+                    PhysicsSpinObj.Parent = MyHRP
+                end
+                PhysicsSpinObj.AngularVelocity = Vector3.new(0, SpinSpeed / 10, 0)
+            end
+        else
+            -- Если спинбот отключен, возвращаем персонажу стандартные настройки
+            stopPhysicsSpin()
+            if MyHumanoid then
+                if not MyHumanoid.AutoRotate then MyHumanoid.AutoRotate = true end
+                if MyHumanoid.PlatformStand then MyHumanoid.PlatformStand = false end
             end
         end
     end)
@@ -310,7 +304,7 @@ return function(Window)
         end
     end)
 
-    -- Авто-коррекция и восстановление состояний при возрождении
+    -- Очистка ссылок при смерти персонажа
     LocalPlayer.CharacterAdded:Connect(function(Character)
         stopPhysicsSpin()
         
@@ -324,12 +318,6 @@ return function(Window)
             end
             Humanoid.UseJumpPower = true
             Humanoid.JumpPower = SavedJumpPower
-        end
-
-        -- Перезапускаем спинбот на новом теле, если он был активен
-        task.wait(0.1)
-        if SpinBotActive then
-            startSpinBot()
         end
     end)
 
