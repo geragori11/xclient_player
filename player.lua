@@ -133,7 +133,7 @@ return function(Window)
     mine.Name = "mine"
     mine.Parent = Frame
     mine.BackgroundColor3 = Color3.fromRGB(123, 255, 247)
-    mine.Position = UDim2.new(0.231578946, 0, 0.491228074, 0)
+    mine.Position = UDim2.new(0.231578946, 0, 0, 0.491228074, 0)
     mine.Size = UDim2.new(0, 45, 0, 29)
     mine.Font = Enum.Font.SourceSans
     mine.Text = "-"
@@ -170,6 +170,17 @@ return function(Window)
     mini2.Position = UDim2.new(0, 44, -1, 57)
     mini2.Visible = false
 
+    -- Функция глушения звуков воды
+    local function muteWaterSounds(char)
+        if not char then return end
+        for _, obj in ipairs(char:GetDescendants()) do
+            if obj:IsA("Sound") and (obj.Name == "Swimming" or obj.Name == "Splash") then
+                obj.Volume = 0
+                obj:Stop()
+            end
+        end
+    end
+
     local function disableFlyFlight()
         nowe = false
         tpwalking = false
@@ -202,28 +213,33 @@ return function(Window)
         end
     end
 
+    local function startTpWalk()
+        tpwalking = true
+        task.spawn(function()
+            local hb = RunService.Heartbeat
+            while tpwalking and nowe do
+                hb:Wait()
+                local chr = LocalPlayer.Character
+                local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
+                if chr and hum and hum.Parent and hum.MoveDirection.Magnitude > 0 then
+                    -- 0.25 делает минимальную скорость (1) ровно в 4 раза меньше
+                    chr:TranslateBy(hum.MoveDirection * (speeds * 0.25))
+                end
+            end
+        end)
+    end
+
     onof.MouseButton1Down:Connect(function()
         if nowe == true then
             disableFlyFlight()
         else
             nowe = true
-
-            for i = 1, speeds do
-                task.spawn(function()
-                    local hb = RunService.Heartbeat
-                    tpwalking = true
-                    local chr = LocalPlayer.Character
-                    local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
-                    while tpwalking and hb:Wait() and chr and hum and hum.Parent and nowe do
-                        if hum.MoveDirection.Magnitude > 0 then
-                            chr:TranslateBy(hum.MoveDirection)
-                        end
-                    end
-                end)
-            end
+            startTpWalk()
 
             local chr = LocalPlayer.Character
             if not chr then return end
+
+            muteWaterSounds(chr)
             
             local anim = chr:FindFirstChild("Animate")
             if anim then
@@ -250,7 +266,8 @@ return function(Window)
                 hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
                 hum:SetStateEnabled(Enum.HumanoidStateType.StrafingNoPhysics, false)
                 hum:SetStateEnabled(Enum.HumanoidStateType.Swimming, false)
-                hum:ChangeState(Enum.HumanoidStateType.Swimming)
+                -- RunningNoPhysics предотвращает трансляцию стейта плавания и устраняет звук всплесков для всех игроков
+                hum:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)
             end
 
             local humanoid = chr:FindFirstChildOfClass("Humanoid")
@@ -260,7 +277,7 @@ return function(Window)
 
                 local ctrl = {f = 0, b = 0, l = 0, r = 0}
                 local lastctrl = {f = 0, b = 0, l = 0, r = 0}
-                local maxspeed = 50
+                local maxspeed = 50 * (speeds * 0.25)
                 local currentFlightSpeed = 0
 
                 local bg = Instance.new("BodyGyro", torso)
@@ -277,9 +294,12 @@ return function(Window)
                 task.spawn(function()
                     while nowe and chr and humanoid and humanoid.Health > 0 and torso.Parent do
                         RunService.RenderStepped:Wait()
+                        muteWaterSounds(chr)
 
                         local camera = workspace.CurrentCamera
                         if not camera then break end
+
+                        maxspeed = 50 * (speeds * 0.25)
 
                         if ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0 then
                             currentFlightSpeed = currentFlightSpeed + 0.5 + (currentFlightSpeed / maxspeed)
@@ -298,7 +318,7 @@ return function(Window)
                             bv.Velocity = Vector3.new(0, 0, 0)
                         end
 
-                        bg.CFrame = camera.CFrame * CFrame.Angles(-math.rad((ctrl.f + ctrl.b) * 50 * currentFlightSpeed / maxspeed), 0, 0)
+                        bg.CFrame = camera.CFrame * CFrame.Angles(-math.rad((ctrl.f + ctrl.b) * 50 * currentFlightSpeed / math.max(maxspeed, 0.001)), 0, 0)
                     end
 
                     pcall(function() bg:Destroy() end)
@@ -313,7 +333,7 @@ return function(Window)
 
                 local ctrl = {f = 0, b = 0, l = 0, r = 0}
                 local lastctrl = {f = 0, b = 0, l = 0, r = 0}
-                local maxspeed = 50
+                local maxspeed = 50 * (speeds * 0.25)
                 local currentFlightSpeed = 0
 
                 local bg = Instance.new("BodyGyro", upperTorso)
@@ -330,9 +350,12 @@ return function(Window)
                 task.spawn(function()
                     while nowe and chr and humanoid and humanoid.Health > 0 and upperTorso.Parent do
                         task.wait()
+                        muteWaterSounds(chr)
 
                         local camera = workspace.CurrentCamera
                         if not camera then break end
+
+                        maxspeed = 50 * (speeds * 0.25)
 
                         if ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0 then
                             currentFlightSpeed = currentFlightSpeed + 0.5 + (currentFlightSpeed / maxspeed)
@@ -351,7 +374,7 @@ return function(Window)
                             bv.Velocity = Vector3.new(0, 0, 0)
                         end
 
-                        bg.CFrame = camera.CFrame * CFrame.Angles(-math.rad((ctrl.f + ctrl.b) * 50 * currentFlightSpeed / maxspeed), 0, 0)
+                        bg.CFrame = camera.CFrame * CFrame.Angles(-math.rad((ctrl.f + ctrl.b) * 50 * currentFlightSpeed / math.max(maxspeed, 0.001)), 0, 0)
                     end
 
                     pcall(function() bg:Destroy() end)
@@ -371,7 +394,7 @@ return function(Window)
                 local chr = LocalPlayer.Character
                 local hrp = chr and chr:FindFirstChild("HumanoidRootPart")
                 if hrp then
-                    hrp.CFrame = hrp.CFrame * CFrame.new(0, 1, 0)
+                    hrp.CFrame = hrp.CFrame * CFrame.new(0, speeds * 0.25, 0)
                 end
             end
         end)
@@ -391,7 +414,7 @@ return function(Window)
                 local chr = LocalPlayer.Character
                 local hrp = chr and chr:FindFirstChild("HumanoidRootPart")
                 if hrp then
-                    hrp.CFrame = hrp.CFrame * CFrame.new(0, -1, 0)
+                    hrp.CFrame = hrp.CFrame * CFrame.new(0, -(speeds * 0.25), 0)
                 end
             end
         end)
@@ -407,48 +430,16 @@ return function(Window)
     plus.MouseButton1Down:Connect(function()
         speeds = speeds + 1
         speed.Text = tostring(speeds)
-        if nowe == true then
-            tpwalking = false
-            for i = 1, speeds do
-                task.spawn(function()
-                    local hb = RunService.Heartbeat
-                    tpwalking = true
-                    local chr = LocalPlayer.Character
-                    local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
-                    while tpwalking and hb:Wait() and chr and hum and hum.Parent and nowe do
-                        if hum.MoveDirection.Magnitude > 0 then
-                            chr:TranslateBy(hum.MoveDirection)
-                        end
-                    end
-                end)
-            end
-        end
     end)
 
     mine.MouseButton1Down:Connect(function()
-        if speeds == 1 then
+        if speeds <= 1 then
             speed.Text = "cannot be less than 1"
             task.wait(1)
             speed.Text = tostring(speeds)
         else
             speeds = speeds - 1
             speed.Text = tostring(speeds)
-            if nowe == true then
-                tpwalking = false
-                for i = 1, speeds do
-                    task.spawn(function()
-                        local hb = RunService.Heartbeat
-                        tpwalking = true
-                        local chr = LocalPlayer.Character
-                        local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
-                        while tpwalking and hb:Wait() and chr and hum and hum.Parent and nowe do
-                            if hum.MoveDirection.Magnitude > 0 then
-                                chr:TranslateBy(hum.MoveDirection)
-                            end
-                        end
-                    end)
-                end
-            end
         end
     end)
 
@@ -478,7 +469,6 @@ return function(Window)
         closebutton.Position = UDim2.new(0, 0, -1, 27)
     end)
 
-    -- Forward declaration переключателя в меню
     local FlyGuiToggleRef = nil
 
     closebutton.MouseButton1Click:Connect(function()
@@ -817,7 +807,7 @@ return function(Window)
         end
     end)
 
-    -- Независимый поток обхода скорости MM2
+    -- Поток обхода скорости MM2
     task.spawn(function()
         while true do
             task.wait(1.2)
