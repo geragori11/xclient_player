@@ -34,9 +34,11 @@ return function(Window)
     local speeds = 1
     local nowe = false
     local tpwalking = false
-    local tis = nil
-    local dis = nil
     local FlyGuiNotified = false
+
+    -- Флаги вертикального движения
+    local upPressed = false
+    local downPressed = false
 
     local main = Instance.new("ScreenGui")
     local Frame = Instance.new("Frame")
@@ -133,7 +135,7 @@ return function(Window)
     mine.Name = "mine"
     mine.Parent = Frame
     mine.BackgroundColor3 = Color3.fromRGB(123, 255, 247)
-    mine.Position = UDim2.new(0.231578946, 0, 0, 0.491228074, 0)
+    mine.Position = UDim2.new(0.231578946, 0, 0.491228074, 0)
     mine.Size = UDim2.new(0, 45, 0, 29)
     mine.Font = Enum.Font.SourceSans
     mine.Text = "-"
@@ -170,7 +172,7 @@ return function(Window)
     mini2.Position = UDim2.new(0, 44, -1, 57)
     mini2.Visible = false
 
-    -- Функция глушения звуков воды
+    -- Глушение звуков воды
     local function muteWaterSounds(char)
         if not char then return end
         for _, obj in ipairs(char:GetDescendants()) do
@@ -184,6 +186,8 @@ return function(Window)
     local function disableFlyFlight()
         nowe = false
         tpwalking = false
+        upPressed = false
+        downPressed = false
         local chr = LocalPlayer.Character
         if chr then
             local hum = chr:FindFirstChildOfClass("Humanoid")
@@ -213,6 +217,7 @@ return function(Window)
         end
     end
 
+    -- Горизонтальный tpwalk (скорость 1 уменьшена ровно в 4 раза: speeds * 0.25)
     local function startTpWalk()
         tpwalking = true
         task.spawn(function()
@@ -222,7 +227,6 @@ return function(Window)
                 local chr = LocalPlayer.Character
                 local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
                 if chr and hum and hum.Parent and hum.MoveDirection.Magnitude > 0 then
-                    -- 0.25 делает минимальную скорость (1) ровно в 4 раза меньше
                     chr:TranslateBy(hum.MoveDirection * (speeds * 0.25))
                 end
             end
@@ -266,7 +270,6 @@ return function(Window)
                 hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
                 hum:SetStateEnabled(Enum.HumanoidStateType.StrafingNoPhysics, false)
                 hum:SetStateEnabled(Enum.HumanoidStateType.Swimming, false)
-                -- RunningNoPhysics предотвращает трансляцию стейта плавания и устраняет звук всплесков для всех игроков
                 hum:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)
             end
 
@@ -274,11 +277,6 @@ return function(Window)
             if humanoid and humanoid.RigType == Enum.HumanoidRigType.R6 then
                 local torso = chr:FindFirstChild("Torso")
                 if not torso then return end
-
-                local ctrl = {f = 0, b = 0, l = 0, r = 0}
-                local lastctrl = {f = 0, b = 0, l = 0, r = 0}
-                local maxspeed = 50 * (speeds * 0.25)
-                local currentFlightSpeed = 0
 
                 local bg = Instance.new("BodyGyro", torso)
                 bg.P = 9e4
@@ -299,26 +297,27 @@ return function(Window)
                         local camera = workspace.CurrentCamera
                         if not camera then break end
 
-                        maxspeed = 50 * (speeds * 0.25)
-
-                        if ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0 then
-                            currentFlightSpeed = currentFlightSpeed + 0.5 + (currentFlightSpeed / maxspeed)
-                            if currentFlightSpeed > maxspeed then currentFlightSpeed = maxspeed end
-                        elseif not (ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0) and currentFlightSpeed ~= 0 then
-                            currentFlightSpeed = currentFlightSpeed - 1
-                            if currentFlightSpeed < 0 then currentFlightSpeed = 0 end
-                        end
-
-                        if (ctrl.l + ctrl.r) ~= 0 or (ctrl.f + ctrl.b) ~= 0 then
-                            bv.Velocity = ((camera.CFrame.LookVector * (ctrl.f + ctrl.b)) + ((camera.CFrame * CFrame.new(ctrl.l + ctrl.r, (ctrl.f + ctrl.b) * 0.2, 0).Position) - camera.CFrame.Position)) * currentFlightSpeed
-                            lastctrl = {f = ctrl.f, b = ctrl.b, l = ctrl.l, r = ctrl.r}
-                        elseif (ctrl.l + ctrl.r) == 0 and (ctrl.f + ctrl.b) == 0 and currentFlightSpeed ~= 0 then
-                            bv.Velocity = ((camera.CFrame.LookVector * (lastctrl.f + lastctrl.b)) + ((camera.CFrame * CFrame.new(lastctrl.l + lastctrl.r, (lastctrl.f + lastctrl.b) * 0.2, 0).Position) - camera.CFrame.Position)) * currentFlightSpeed
+                        -- Динамический расчёт вертикальной скорости без сопротивления BodyVelocity
+                        local vVelocityY = 0
+                        local vertOffset = 0
+                        if upPressed then
+                            vVelocityY = math.max(speeds * 18, 30)
+                            vertOffset = math.max(speeds * 0.4, 0.7)
+                        elseif downPressed then
+                            vVelocityY = -math.max(speeds * 18, 30)
+                            vertOffset = -math.max(speeds * 0.4, 0.7)
                         else
-                            bv.Velocity = Vector3.new(0, 0, 0)
+                            vVelocityY = 0.1
                         end
 
-                        bg.CFrame = camera.CFrame * CFrame.Angles(-math.rad((ctrl.f + ctrl.b) * 50 * currentFlightSpeed / math.max(maxspeed, 0.001)), 0, 0)
+                        bv.Velocity = Vector3.new(0, vVelocityY, 0)
+
+                        local hrp = chr:FindFirstChild("HumanoidRootPart") or torso
+                        if vertOffset ~= 0 and hrp then
+                            hrp.CFrame = hrp.CFrame * CFrame.new(0, vertOffset, 0)
+                        end
+
+                        bg.CFrame = camera.CFrame
                     end
 
                     pcall(function() bg:Destroy() end)
@@ -330,11 +329,6 @@ return function(Window)
             else
                 local upperTorso = chr:FindFirstChild("UpperTorso") or chr:FindFirstChild("HumanoidRootPart")
                 if not upperTorso then return end
-
-                local ctrl = {f = 0, b = 0, l = 0, r = 0}
-                local lastctrl = {f = 0, b = 0, l = 0, r = 0}
-                local maxspeed = 50 * (speeds * 0.25)
-                local currentFlightSpeed = 0
 
                 local bg = Instance.new("BodyGyro", upperTorso)
                 bg.P = 9e4
@@ -355,26 +349,26 @@ return function(Window)
                         local camera = workspace.CurrentCamera
                         if not camera then break end
 
-                        maxspeed = 50 * (speeds * 0.25)
-
-                        if ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0 then
-                            currentFlightSpeed = currentFlightSpeed + 0.5 + (currentFlightSpeed / maxspeed)
-                            if currentFlightSpeed > maxspeed then currentFlightSpeed = maxspeed end
-                        elseif not (ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0) and currentFlightSpeed ~= 0 then
-                            currentFlightSpeed = currentFlightSpeed - 1
-                            if currentFlightSpeed < 0 then currentFlightSpeed = 0 end
-                        end
-
-                        if (ctrl.l + ctrl.r) ~= 0 or (ctrl.f + ctrl.b) ~= 0 then
-                            bv.Velocity = ((camera.CFrame.LookVector * (ctrl.f + ctrl.b)) + ((camera.CFrame * CFrame.new(ctrl.l + ctrl.r, (ctrl.f + ctrl.b) * 0.2, 0).Position) - camera.CFrame.Position)) * currentFlightSpeed
-                            lastctrl = {f = ctrl.f, b = ctrl.b, l = ctrl.l, r = ctrl.r}
-                        elseif (ctrl.l + ctrl.r) == 0 and (ctrl.f + ctrl.b) == 0 and currentFlightSpeed ~= 0 then
-                            bv.Velocity = ((camera.CFrame.LookVector * (lastctrl.f + lastctrl.b)) + ((camera.CFrame * CFrame.new(lastctrl.l + lastctrl.r, (lastctrl.f + lastctrl.b) * 0.2, 0).Position) - camera.CFrame.Position)) * currentFlightSpeed
+                        local vVelocityY = 0
+                        local vertOffset = 0
+                        if upPressed then
+                            vVelocityY = math.max(speeds * 18, 30)
+                            vertOffset = math.max(speeds * 0.4, 0.7)
+                        elseif downPressed then
+                            vVelocityY = -math.max(speeds * 18, 30)
+                            vertOffset = -math.max(speeds * 0.4, 0.7)
                         else
-                            bv.Velocity = Vector3.new(0, 0, 0)
+                            vVelocityY = 0.1
                         end
 
-                        bg.CFrame = camera.CFrame * CFrame.Angles(-math.rad((ctrl.f + ctrl.b) * 50 * currentFlightSpeed / math.max(maxspeed, 0.001)), 0, 0)
+                        bv.Velocity = Vector3.new(0, vVelocityY, 0)
+
+                        local hrp = chr:FindFirstChild("HumanoidRootPart") or upperTorso
+                        if vertOffset ~= 0 and hrp then
+                            hrp.CFrame = hrp.CFrame * CFrame.new(0, vertOffset, 0)
+                        end
+
+                        bg.CFrame = camera.CFrame
                     end
 
                     pcall(function() bg:Destroy() end)
@@ -387,43 +381,43 @@ return function(Window)
         end
     end)
 
+    -- Корректная обработка удержания и кликов для кнопок UP / DOWN
     up.MouseButton1Down:Connect(function()
-        tis = up.MouseEnter:Connect(function()
-            while tis do
-                task.wait()
-                local chr = LocalPlayer.Character
-                local hrp = chr and chr:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    hrp.CFrame = hrp.CFrame * CFrame.new(0, speeds * 0.25, 0)
-                end
-            end
-        end)
+        upPressed = true
     end)
-
+    up.MouseButton1Up:Connect(function()
+        upPressed = false
+    end)
     up.MouseLeave:Connect(function()
-        if tis then
-            tis:Disconnect()
-            tis = nil
-        end
+        upPressed = false
     end)
 
     down.MouseButton1Down:Connect(function()
-        dis = down.MouseEnter:Connect(function()
-            while dis do
-                task.wait()
-                local chr = LocalPlayer.Character
-                local hrp = chr and chr:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    hrp.CFrame = hrp.CFrame * CFrame.new(0, -(speeds * 0.25), 0)
-                end
-            end
-        end)
+        downPressed = true
+    end)
+    down.MouseButton1Up:Connect(function()
+        downPressed = false
+    end)
+    down.MouseLeave:Connect(function()
+        downPressed = false
     end)
 
-    down.MouseLeave:Connect(function()
-        if dis then
-            dis:Disconnect()
-            dis = nil
+    -- Поддержка клавиатуры для взлёта и спуска (Space / E — вверх, Shift / Ctrl / Q — вниз)
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if not nowe then return end
+        if input.KeyCode == Enum.KeyCode.Space or input.KeyCode == Enum.KeyCode.E then
+            upPressed = true
+        elseif input.KeyCode == Enum.KeyCode.LeftShift or input.KeyCode == Enum.KeyCode.LeftControl or input.KeyCode == Enum.KeyCode.Q then
+            downPressed = true
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input, gameProcessed)
+        if input.KeyCode == Enum.KeyCode.Space or input.KeyCode == Enum.KeyCode.E then
+            upPressed = false
+        elseif input.KeyCode == Enum.KeyCode.LeftShift or input.KeyCode == Enum.KeyCode.LeftControl or input.KeyCode == Enum.KeyCode.Q then
+            downPressed = false
         end
     end)
 
@@ -479,7 +473,7 @@ return function(Window)
         end
     end)
 
-    -- Функция очистки физических объектов спинбота
+    -- Очистка физических объектов спинбота
     local function stopPhysicsSpin()
         if PhysicsSpinObj then 
             pcall(function() PhysicsSpinObj:Destroy() end) 
