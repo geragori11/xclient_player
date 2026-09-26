@@ -24,12 +24,470 @@ return function(Window)
     local StrafeEnabled = false
     local MM2BypassEnabled = false
 
-    -- Фиксированные углы для нового режима дерганья
+    -- Фиксированные углы для режимов дерганья
     local TwitchAngles = {60, 120, 180, 240, 300, 360}
     local TwitchAngles2 = {120, 240, 360}
 
-    -- Создание вкладки в Rayfield UI
-    local PlayerTab = Window:CreateTab("Player", 4483362458)
+    -- ==========================================
+    -- ИНИЦИАЛИЗАЦИЯ И ЛОГИКА FLY GUI V3
+    -- ==========================================
+    local speeds = 1
+    local nowe = false
+    local tpwalking = false
+    local tis = nil
+    local dis = nil
+    local FlyGuiNotified = false
+
+    local main = Instance.new("ScreenGui")
+    local Frame = Instance.new("Frame")
+    local up = Instance.new("TextButton")
+    local down = Instance.new("TextButton")
+    local onof = Instance.new("TextButton")
+    local TextLabel = Instance.new("TextLabel")
+    local plus = Instance.new("TextButton")
+    local speed = Instance.new("TextLabel")
+    local mine = Instance.new("TextButton")
+    local closebutton = Instance.new("TextButton")
+    local mini = Instance.new("TextButton")
+    local mini2 = Instance.new("TextButton")
+
+    main.Name = "FlyGuiV3"
+    main.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    main.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    main.ResetOnSpawn = false
+    main.Enabled = false
+
+    Frame.Name = "Frame"
+    Frame.Parent = main
+    Frame.BackgroundColor3 = Color3.fromRGB(163, 255, 137)
+    Frame.BorderColor3 = Color3.fromRGB(103, 221, 213)
+    Frame.Position = UDim2.new(0.100320168, 0, 0.379746825, 0)
+    Frame.Size = UDim2.new(0, 190, 0, 57)
+    Frame.Active = true
+    Frame.Draggable = true
+
+    up.Name = "up"
+    up.Parent = Frame
+    up.BackgroundColor3 = Color3.fromRGB(79, 255, 152)
+    up.Size = UDim2.new(0, 44, 0, 28)
+    up.Font = Enum.Font.SourceSans
+    up.Text = "UP"
+    up.TextColor3 = Color3.fromRGB(0, 0, 0)
+    up.TextSize = 14.000
+
+    down.Name = "down"
+    down.Parent = Frame
+    down.BackgroundColor3 = Color3.fromRGB(215, 255, 121)
+    down.Position = UDim2.new(0, 0, 0.491228074, 0)
+    down.Size = UDim2.new(0, 44, 0, 28)
+    down.Font = Enum.Font.SourceSans
+    down.Text = "DOWN"
+    down.TextColor3 = Color3.fromRGB(0, 0, 0)
+    down.TextSize = 14.000
+
+    onof.Name = "onof"
+    onof.Parent = Frame
+    onof.BackgroundColor3 = Color3.fromRGB(255, 249, 74)
+    onof.Position = UDim2.new(0.702823281, 0, 0.491228074, 0)
+    onof.Size = UDim2.new(0, 56, 0, 28)
+    onof.Font = Enum.Font.SourceSans
+    onof.Text = "fly"
+    onof.TextColor3 = Color3.fromRGB(0, 0, 0)
+    onof.TextSize = 14.000
+
+    TextLabel.Parent = Frame
+    TextLabel.BackgroundColor3 = Color3.fromRGB(242, 60, 255)
+    TextLabel.Position = UDim2.new(0.469327301, 0, 0, 0)
+    TextLabel.Size = UDim2.new(0, 100, 0, 28)
+    TextLabel.Font = Enum.Font.SourceSans
+    TextLabel.Text = "FLY GUI V3"
+    TextLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
+    TextLabel.TextScaled = true
+    TextLabel.TextSize = 14.000
+    TextLabel.TextWrapped = true
+
+    plus.Name = "plus"
+    plus.Parent = Frame
+    plus.BackgroundColor3 = Color3.fromRGB(133, 145, 255)
+    plus.Position = UDim2.new(0.231578946, 0, 0, 0)
+    plus.Size = UDim2.new(0, 45, 0, 28)
+    plus.Font = Enum.Font.SourceSans
+    plus.Text = "+"
+    plus.TextColor3 = Color3.fromRGB(0, 0, 0)
+    plus.TextScaled = true
+    plus.TextSize = 14.000
+    plus.TextWrapped = true
+
+    speed.Name = "speed"
+    speed.Parent = Frame
+    speed.BackgroundColor3 = Color3.fromRGB(255, 85, 0)
+    speed.Position = UDim2.new(0.468421042, 0, 0.491228074, 0)
+    speed.Size = UDim2.new(0, 44, 0, 28)
+    speed.Font = Enum.Font.SourceSans
+    speed.Text = "1"
+    speed.TextColor3 = Color3.fromRGB(0, 0, 0)
+    speed.TextScaled = true
+    speed.TextSize = 14.000
+    speed.TextWrapped = true
+
+    mine.Name = "mine"
+    mine.Parent = Frame
+    mine.BackgroundColor3 = Color3.fromRGB(123, 255, 247)
+    mine.Position = UDim2.new(0.231578946, 0, 0.491228074, 0)
+    mine.Size = UDim2.new(0, 45, 0, 29)
+    mine.Font = Enum.Font.SourceSans
+    mine.Text = "-"
+    mine.TextColor3 = Color3.fromRGB(0, 0, 0)
+    mine.TextScaled = true
+    mine.TextSize = 14.000
+    mine.TextWrapped = true
+
+    closebutton.Name = "Close"
+    closebutton.Parent = Frame
+    closebutton.BackgroundColor3 = Color3.fromRGB(225, 25, 0)
+    closebutton.Font = Enum.Font.SourceSans
+    closebutton.Size = UDim2.new(0, 45, 0, 28)
+    closebutton.Text = "X"
+    closebutton.TextSize = 30
+    closebutton.Position = UDim2.new(0, 0, -1, 27)
+
+    mini.Name = "minimize"
+    mini.Parent = Frame
+    mini.BackgroundColor3 = Color3.fromRGB(192, 150, 230)
+    mini.Font = Enum.Font.SourceSans
+    mini.Size = UDim2.new(0, 45, 0, 28)
+    mini.Text = "-"
+    mini.TextSize = 40
+    mini.Position = UDim2.new(0, 44, -1, 27)
+
+    mini2.Name = "minimize2"
+    mini2.Parent = Frame
+    mini2.BackgroundColor3 = Color3.fromRGB(192, 150, 230)
+    mini2.Font = Enum.Font.SourceSans
+    mini2.Size = UDim2.new(0, 45, 0, 28)
+    mini2.Text = "+"
+    mini2.TextSize = 40
+    mini2.Position = UDim2.new(0, 44, -1, 57)
+    mini2.Visible = false
+
+    local function disableFlyFlight()
+        nowe = false
+        tpwalking = false
+        local chr = LocalPlayer.Character
+        if chr then
+            local hum = chr:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Flying, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Freefall, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Landed, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Physics, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Running, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.StrafingNoPhysics, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Swimming, true)
+                hum:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)
+                hum.PlatformStand = false
+            end
+            local anim = chr:FindFirstChild("Animate")
+            if anim then
+                anim.Disabled = false
+            end
+        end
+    end
+
+    onof.MouseButton1Down:Connect(function()
+        if nowe == true then
+            disableFlyFlight()
+        else
+            nowe = true
+
+            for i = 1, speeds do
+                task.spawn(function()
+                    local hb = RunService.Heartbeat
+                    tpwalking = true
+                    local chr = LocalPlayer.Character
+                    local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
+                    while tpwalking and hb:Wait() and chr and hum and hum.Parent and nowe do
+                        if hum.MoveDirection.Magnitude > 0 then
+                            chr:TranslateBy(hum.MoveDirection)
+                        end
+                    end
+                end)
+            end
+
+            local chr = LocalPlayer.Character
+            if not chr then return end
+            
+            local anim = chr:FindFirstChild("Animate")
+            if anim then
+                anim.Disabled = true
+            end
+
+            local hum = chr:FindFirstChildOfClass("Humanoid") or chr:FindFirstChildOfClass("AnimationController")
+            if hum then
+                for _, track in pairs(hum:GetPlayingAnimationTracks()) do
+                    track:AdjustSpeed(0)
+                end
+                hum:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
+                hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Flying, false)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Freefall, false)
+                hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Landed, false)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
+                hum:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, false)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Running, false)
+                hum:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics, false)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+                hum:SetStateEnabled(Enum.HumanoidStateType.StrafingNoPhysics, false)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Swimming, false)
+                hum:ChangeState(Enum.HumanoidStateType.Swimming)
+            end
+
+            local humanoid = chr:FindFirstChildOfClass("Humanoid")
+            if humanoid and humanoid.RigType == Enum.HumanoidRigType.R6 then
+                local torso = chr:FindFirstChild("Torso")
+                if not torso then return end
+
+                local ctrl = {f = 0, b = 0, l = 0, r = 0}
+                local lastctrl = {f = 0, b = 0, l = 0, r = 0}
+                local maxspeed = 50
+                local currentFlightSpeed = 0
+
+                local bg = Instance.new("BodyGyro", torso)
+                bg.P = 9e4
+                bg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+                bg.CFrame = torso.CFrame
+
+                local bv = Instance.new("BodyVelocity", torso)
+                bv.Velocity = Vector3.new(0, 0.1, 0)
+                bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+
+                humanoid.PlatformStand = true
+
+                task.spawn(function()
+                    while nowe and chr and humanoid and humanoid.Health > 0 and torso.Parent do
+                        RunService.RenderStepped:Wait()
+
+                        local camera = workspace.CurrentCamera
+                        if not camera then break end
+
+                        if ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0 then
+                            currentFlightSpeed = currentFlightSpeed + 0.5 + (currentFlightSpeed / maxspeed)
+                            if currentFlightSpeed > maxspeed then currentFlightSpeed = maxspeed end
+                        elseif not (ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0) and currentFlightSpeed ~= 0 then
+                            currentFlightSpeed = currentFlightSpeed - 1
+                            if currentFlightSpeed < 0 then currentFlightSpeed = 0 end
+                        end
+
+                        if (ctrl.l + ctrl.r) ~= 0 or (ctrl.f + ctrl.b) ~= 0 then
+                            bv.Velocity = ((camera.CFrame.LookVector * (ctrl.f + ctrl.b)) + ((camera.CFrame * CFrame.new(ctrl.l + ctrl.r, (ctrl.f + ctrl.b) * 0.2, 0).Position) - camera.CFrame.Position)) * currentFlightSpeed
+                            lastctrl = {f = ctrl.f, b = ctrl.b, l = ctrl.l, r = ctrl.r}
+                        elseif (ctrl.l + ctrl.r) == 0 and (ctrl.f + ctrl.b) == 0 and currentFlightSpeed ~= 0 then
+                            bv.Velocity = ((camera.CFrame.LookVector * (lastctrl.f + lastctrl.b)) + ((camera.CFrame * CFrame.new(lastctrl.l + lastctrl.r, (lastctrl.f + lastctrl.b) * 0.2, 0).Position) - camera.CFrame.Position)) * currentFlightSpeed
+                        else
+                            bv.Velocity = Vector3.new(0, 0, 0)
+                        end
+
+                        bg.CFrame = camera.CFrame * CFrame.Angles(-math.rad((ctrl.f + ctrl.b) * 50 * currentFlightSpeed / maxspeed), 0, 0)
+                    end
+
+                    pcall(function() bg:Destroy() end)
+                    pcall(function() bv:Destroy() end)
+                    if humanoid then humanoid.PlatformStand = false end
+                    if chr:FindFirstChild("Animate") then chr.Animate.Disabled = false end
+                    tpwalking = false
+                end)
+            else
+                local upperTorso = chr:FindFirstChild("UpperTorso") or chr:FindFirstChild("HumanoidRootPart")
+                if not upperTorso then return end
+
+                local ctrl = {f = 0, b = 0, l = 0, r = 0}
+                local lastctrl = {f = 0, b = 0, l = 0, r = 0}
+                local maxspeed = 50
+                local currentFlightSpeed = 0
+
+                local bg = Instance.new("BodyGyro", upperTorso)
+                bg.P = 9e4
+                bg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+                bg.CFrame = upperTorso.CFrame
+
+                local bv = Instance.new("BodyVelocity", upperTorso)
+                bv.Velocity = Vector3.new(0, 0.1, 0)
+                bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+
+                if humanoid then humanoid.PlatformStand = true end
+
+                task.spawn(function()
+                    while nowe and chr and humanoid and humanoid.Health > 0 and upperTorso.Parent do
+                        task.wait()
+
+                        local camera = workspace.CurrentCamera
+                        if not camera then break end
+
+                        if ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0 then
+                            currentFlightSpeed = currentFlightSpeed + 0.5 + (currentFlightSpeed / maxspeed)
+                            if currentFlightSpeed > maxspeed then currentFlightSpeed = maxspeed end
+                        elseif not (ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0) and currentFlightSpeed ~= 0 then
+                            currentFlightSpeed = currentFlightSpeed - 1
+                            if currentFlightSpeed < 0 then currentFlightSpeed = 0 end
+                        end
+
+                        if (ctrl.l + ctrl.r) ~= 0 or (ctrl.f + ctrl.b) ~= 0 then
+                            bv.Velocity = ((camera.CFrame.LookVector * (ctrl.f + ctrl.b)) + ((camera.CFrame * CFrame.new(ctrl.l + ctrl.r, (ctrl.f + ctrl.b) * 0.2, 0).Position) - camera.CFrame.Position)) * currentFlightSpeed
+                            lastctrl = {f = ctrl.f, b = ctrl.b, l = ctrl.l, r = ctrl.r}
+                        elseif (ctrl.l + ctrl.r) == 0 and (ctrl.f + ctrl.b) == 0 and currentFlightSpeed ~= 0 then
+                            bv.Velocity = ((camera.CFrame.LookVector * (lastctrl.f + lastctrl.b)) + ((camera.CFrame * CFrame.new(lastctrl.l + lastctrl.r, (lastctrl.f + lastctrl.b) * 0.2, 0).Position) - camera.CFrame.Position)) * currentFlightSpeed
+                        else
+                            bv.Velocity = Vector3.new(0, 0, 0)
+                        end
+
+                        bg.CFrame = camera.CFrame * CFrame.Angles(-math.rad((ctrl.f + ctrl.b) * 50 * currentFlightSpeed / maxspeed), 0, 0)
+                    end
+
+                    pcall(function() bg:Destroy() end)
+                    pcall(function() bv:Destroy() end)
+                    if humanoid then humanoid.PlatformStand = false end
+                    if chr:FindFirstChild("Animate") then chr.Animate.Disabled = false end
+                    tpwalking = false
+                end)
+            end
+        end
+    end)
+
+    up.MouseButton1Down:Connect(function()
+        tis = up.MouseEnter:Connect(function()
+            while tis do
+                task.wait()
+                local chr = LocalPlayer.Character
+                local hrp = chr and chr:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    hrp.CFrame = hrp.CFrame * CFrame.new(0, 1, 0)
+                end
+            end
+        end)
+    end)
+
+    up.MouseLeave:Connect(function()
+        if tis then
+            tis:Disconnect()
+            tis = nil
+        end
+    end)
+
+    down.MouseButton1Down:Connect(function()
+        dis = down.MouseEnter:Connect(function()
+            while dis do
+                task.wait()
+                local chr = LocalPlayer.Character
+                local hrp = chr and chr:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    hrp.CFrame = hrp.CFrame * CFrame.new(0, -1, 0)
+                end
+            end
+        end)
+    end)
+
+    down.MouseLeave:Connect(function()
+        if dis then
+            dis:Disconnect()
+            dis = nil
+        end
+    end)
+
+    plus.MouseButton1Down:Connect(function()
+        speeds = speeds + 1
+        speed.Text = tostring(speeds)
+        if nowe == true then
+            tpwalking = false
+            for i = 1, speeds do
+                task.spawn(function()
+                    local hb = RunService.Heartbeat
+                    tpwalking = true
+                    local chr = LocalPlayer.Character
+                    local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
+                    while tpwalking and hb:Wait() and chr and hum and hum.Parent and nowe do
+                        if hum.MoveDirection.Magnitude > 0 then
+                            chr:TranslateBy(hum.MoveDirection)
+                        end
+                    end
+                end)
+            end
+        end
+    end)
+
+    mine.MouseButton1Down:Connect(function()
+        if speeds == 1 then
+            speed.Text = "cannot be less than 1"
+            task.wait(1)
+            speed.Text = tostring(speeds)
+        else
+            speeds = speeds - 1
+            speed.Text = tostring(speeds)
+            if nowe == true then
+                tpwalking = false
+                for i = 1, speeds do
+                    task.spawn(function()
+                        local hb = RunService.Heartbeat
+                        tpwalking = true
+                        local chr = LocalPlayer.Character
+                        local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
+                        while tpwalking and hb:Wait() and chr and hum and hum.Parent and nowe do
+                            if hum.MoveDirection.Magnitude > 0 then
+                                chr:TranslateBy(hum.MoveDirection)
+                            end
+                        end
+                    end)
+                end
+            end
+        end
+    end)
+
+    mini.MouseButton1Click:Connect(function()
+        up.Visible = false
+        down.Visible = false
+        onof.Visible = false
+        plus.Visible = false
+        speed.Visible = false
+        mine.Visible = false
+        mini.Visible = false
+        mini2.Visible = true
+        Frame.BackgroundTransparency = 1
+        closebutton.Position = UDim2.new(0, 0, -1, 57)
+    end)
+
+    mini2.MouseButton1Click:Connect(function()
+        up.Visible = true
+        down.Visible = true
+        onof.Visible = true
+        plus.Visible = true
+        speed.Visible = true
+        mine.Visible = true
+        mini.Visible = true
+        mini2.Visible = false
+        Frame.BackgroundTransparency = 0
+        closebutton.Position = UDim2.new(0, 0, -1, 27)
+    end)
+
+    -- Forward declaration переключателя в меню
+    local FlyGuiToggleRef = nil
+
+    closebutton.MouseButton1Click:Connect(function()
+        main.Enabled = false
+        disableFlyFlight()
+        if FlyGuiToggleRef and type(FlyGuiToggleRef.Set) == "function" then
+            FlyGuiToggleRef:Set(false)
+        end
+    end)
 
     -- Функция очистки физических объектов спинбота
     local function stopPhysicsSpin()
@@ -42,6 +500,9 @@ return function(Window)
             PhysicsAttachment = nil 
         end
     end
+
+    -- Создание вкладки в Rayfield UI
+    local PlayerTab = Window:CreateTab("Player", 4483362458)
 
     -- ==========================================
     -- РАЗДЕЛ: ХАРАКТЕРИСТИКИ
@@ -106,6 +567,30 @@ return function(Window)
     -- ==========================================
     PlayerTab:CreateSection("Перемещение и Стены")
 
+    FlyGuiToggleRef = PlayerTab:CreateToggle({
+        Name = "Fly GUI V3 (Экранная панель полета)",
+        CurrentValue = false,
+        Flag = "FlyGuiV3Toggle",
+        Callback = function(Value)
+            main.Enabled = Value
+            if Value then
+                if not FlyGuiNotified then
+                    FlyGuiNotified = true
+                    pcall(function()
+                        game:GetService("StarterGui"):SetCore("SendNotification", {
+                            Title = "FLY GUI V3",
+                            Text = "BY XNEO",
+                            Icon = "rbxthumb://type=Asset&id=5107182114&w=150&h=150",
+                            Duration = 5
+                        })
+                    end)
+                end
+            else
+                disableFlyFlight()
+            end
+        end
+    })
+
     PlayerTab:CreateToggle({
         Name = "Прохождение сквозь стены (Noclip)",
         CurrentValue = false,
@@ -163,11 +648,10 @@ return function(Window)
 
     PlayerTab:CreateDropdown({
         Name = "Режим Спинбота",
-        Options = {"Классический", "Физический", "Jitter", "Безумный ", "Дерганье 6 оси", "Дерганье 3 оси"},
+        Options = {"Классический", "Физический (Плавный)", "Jitter", "Безумный", "Дерганье 6 оси", "Дерганье 3 оси"},
         CurrentOption = "Классический",
         Flag = "SpinModeDropdown",
         Callback = function(Option)
-            -- Фикс Rayfield UI (извлечение строки из таблицы, если необходимо)
             local CleanOption = type(Option) == "table" and Option[1] or Option
             if type(CleanOption) == "string" then
                 CurrentSpinMode = CleanOption
@@ -190,7 +674,6 @@ return function(Window)
     -- ==========================================
     -- ОСНОВНОЙ ПОТОК ОБРАБОТКИ (КАЖДЫЙ КАДР)
     -- ==========================================
-    
     RunService.Stepped:Connect(function()
         local MyCharacter = LocalPlayer.Character
         if not MyCharacter then return end
@@ -198,7 +681,6 @@ return function(Window)
         local MyHRP = MyCharacter:FindFirstChild("HumanoidRootPart")
         local MyHumanoid = MyCharacter:FindFirstChildOfClass("Humanoid")
 
-        -- Стабилизация характеристик (каждый кадр заменяет старый fullRefresh)
         if MyHumanoid then
             if not MM2BypassEnabled then
                 MyHumanoid.WalkSpeed = SavedWalkSpeed
@@ -207,7 +689,6 @@ return function(Window)
             MyHumanoid.JumpPower = SavedJumpPower
         end
 
-        -- Логика Noclip
         if NoclipEnabled then
             for _, Part in ipairs(MyCharacter:GetDescendants()) do
                 if Part:IsA("BasePart") then
@@ -216,7 +697,6 @@ return function(Window)
             end
         end
 
-        -- Логика Anti-Fling
         if AntiFlingEnabled and MyHRP then
             for _, Player in ipairs(Players:GetPlayers()) do
                 if Player ~= LocalPlayer and Player.Character then
@@ -232,7 +712,6 @@ return function(Window)
             end
         end
 
-        -- Логика Strafe (контроль в воздухе)
         if StrafeEnabled and MyHRP and MyHumanoid then
             local state = MyHumanoid:GetState()
             if state == Enum.HumanoidStateType.Freefall or state == Enum.HumanoidStateType.Jumping then
@@ -245,18 +724,15 @@ return function(Window)
             end
         end
 
-        -- Логика Спинбота
         if SpinBotActive and MyHRP and MyHumanoid then
-            -- Управление внутренними стейтами Humanoid для совместимости с движком
             if CurrentSpinMode == "Безумный" then
                 if not MyHumanoid.PlatformStand then MyHumanoid.PlatformStand = true end
             else
-                if MyHumanoid.PlatformStand then MyHumanoid.PlatformStand = false end
+                if not nowe and MyHumanoid.PlatformStand then MyHumanoid.PlatformStand = false end
             end
 
             if MyHumanoid.AutoRotate then MyHumanoid.AutoRotate = false end
 
-            -- Выполнение режимов вращения
             if CurrentSpinMode == "Классический" then
                 stopPhysicsSpin()
                 MyHRP.CFrame = MyHRP.CFrame * CFrame.Angles(0, math.rad(SpinSpeed), 0)
@@ -277,7 +753,7 @@ return function(Window)
 
             elseif CurrentSpinMode == "Дерганье 3 оси" then
                 stopPhysicsSpin()
-                local randomAngle = TwitchAngles[math.random(1, #TwitchAngles2)]
+                local randomAngle = TwitchAngles2[math.random(1, #TwitchAngles2)]
                 MyHRP.CFrame = MyHRP.CFrame * CFrame.Angles(0, math.rad(randomAngle), 0)
                 
             elseif CurrentSpinMode == "Физический (Плавный)" then
@@ -298,11 +774,10 @@ return function(Window)
                 PhysicsSpinObj.AngularVelocity = Vector3.new(0, SpinSpeed / 10, 0)
             end
         else
-            -- Сброс настроек при выключении спинбота
             stopPhysicsSpin()
             if MyHumanoid then
                 if not MyHumanoid.AutoRotate then MyHumanoid.AutoRotate = true end
-                if MyHumanoid.PlatformStand then MyHumanoid.PlatformStand = false end
+                if not nowe and MyHumanoid.PlatformStand then MyHumanoid.PlatformStand = false end
             end
         end
     end)
@@ -318,13 +793,20 @@ return function(Window)
         end
     end)
 
-    -- Восстановление характеристик после респавна
+    -- Восстановление параметров после респавна
     LocalPlayer.CharacterAdded:Connect(function(Character)
         stopPhysicsSpin()
+        disableFlyFlight()
         
         local Humanoid = Character:WaitForChild("Humanoid", 3)
         if Humanoid then
             task.wait(0.1)
+            Humanoid.PlatformStand = false
+            local anim = Character:FindFirstChild("Animate")
+            if anim then
+                anim.Disabled = false
+            end
+
             if MM2BypassEnabled and SavedWalkSpeed > 30 then
                 Humanoid.WalkSpeed = 30
             else
@@ -335,7 +817,7 @@ return function(Window)
         end
     end)
 
-    -- Независимый поток для пульсации обхода скорости (ММ2)
+    -- Независимый поток обхода скорости MM2
     task.spawn(function()
         while true do
             task.wait(1.2)
